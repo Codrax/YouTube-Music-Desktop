@@ -45,6 +45,15 @@ end;
     Givefeedback1: TMenuItem;
     StartupLogo: TImage;
     Timer1: TTimer;
+    ErrorPane: TPanel;
+    Image1: TImage;
+    Label1: TLabel;
+    Label2: TLabel;
+    Button1: TButton;
+    Button2: TButton;
+    Panel1: TPanel;
+    Label3: TLabel;
+    Label4: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure TrayIconDblClick(Sender: TObject);
@@ -55,6 +64,9 @@ end;
     procedure Explore1Click(Sender: TObject);
     procedure Givefeedback1Click(Sender: TObject);
     procedure FormShow(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    procedure FormResize(Sender: TObject);
   protected
     Browser: TMainBrowser;
 
@@ -143,12 +155,64 @@ begin
     AppInitialized := true;
     StartupLogo.Hide;
   end;
+
+  // Error
+  if WebErrorStatus <> 0 then begin
+    var S := '';
+    case WebErrorStatus of
+      COREWEBVIEW2_WEB_ERROR_STATUS_CERTIFICATE_COMMON_NAME_IS_INCORRECT: S := 'CERTIFICATE_COMMON_NAME_IS_INCORRECT';
+      COREWEBVIEW2_WEB_ERROR_STATUS_CERTIFICATE_EXPIRED: S := 'CERTIFICATE_EXPIRED';
+      COREWEBVIEW2_WEB_ERROR_STATUS_CLIENT_CERTIFICATE_CONTAINS_ERRORS: S := 'CLIENT_CERTIFICATE_CONTAINS_ERRORS';
+      COREWEBVIEW2_WEB_ERROR_STATUS_CERTIFICATE_REVOKED: S := 'CERTIFICATE_REVOKED';
+      COREWEBVIEW2_WEB_ERROR_STATUS_CERTIFICATE_IS_INVALID: S := 'CERTIFICATE_IS_INVALID';
+      COREWEBVIEW2_WEB_ERROR_STATUS_SERVER_UNREACHABLE: S := 'SERVER_UNREACHABLE';
+      COREWEBVIEW2_WEB_ERROR_STATUS_TIMEOUT: S := 'TIMEOUT';
+      COREWEBVIEW2_WEB_ERROR_STATUS_ERROR_HTTP_INVALID_SERVER_RESPONSE: S := 'ERROR_HTTP_INVALID_SERVER_RESPONSE';
+      COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_ABORTED: S := 'CONNECTION_ABORTED';
+      COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_RESET: S := 'CONNECTION_RESET';
+      COREWEBVIEW2_WEB_ERROR_STATUS_DISCONNECTED: S := 'DISCONNECTED';
+      COREWEBVIEW2_WEB_ERROR_STATUS_CANNOT_CONNECT: S := 'CANNOT_CONNECT';
+      COREWEBVIEW2_WEB_ERROR_STATUS_HOST_NAME_NOT_RESOLVED: S := 'HOST_NAME_NOT_RESOLVED';
+      COREWEBVIEW2_WEB_ERROR_STATUS_OPERATION_CANCELED: S := 'OPERATION_CANCELED';
+      COREWEBVIEW2_WEB_ERROR_STATUS_REDIRECT_FAILED: S := 'REDIRECT_FAILED';
+      COREWEBVIEW2_WEB_ERROR_STATUS_UNEXPECTED_ERROR: S := 'UNEXPECTED_ERROR';
+      COREWEBVIEW2_WEB_ERROR_STATUS_VALID_AUTHENTICATION_CREDENTIALS_REQUIRED: S := 'VALID_AUTHENTICATION_CREDENTIALS_REQUIRED';
+      COREWEBVIEW2_WEB_ERROR_STATUS_VALID_PROXY_AUTHENTICATION_REQUIRED: S := 'VALID_PROXY_AUTHENTICATION_REQUIRED';
+      else S := 'An unknown error has occured';
+    end;
+
+    // Error panel
+    Browser.Hide;
+    ErrorPane.Show;
+
+    Label4.Caption := S;
+  end;
 end;
 
 procedure TMainForm.BrowserNavigationStarting(Sender: TCustomEdgeBrowser;
   Args: TNavigationStartingEventArgs);
 begin
   BrowserNavigating := true;
+end;
+
+procedure TMainForm.Button1Click(Sender: TObject);
+begin
+  // Re-fresh
+  Browser.Refresh;
+
+  // Ui
+  ErrorPane.Hide;
+  Browser.Show;
+end;
+
+procedure TMainForm.Button2Click(Sender: TObject);
+begin
+  // Ui
+  ErrorPane.Hide;
+  Browser.Show;
+
+  // Init
+  InitializeSite(false);
 end;
 
 procedure TMainForm.CloseProgram;
@@ -222,6 +286,7 @@ procedure TMainForm.CreatingWebViewFinalized(Sender: TCustomEdgeBrowser;
 begin
   // Context menu
   Browser.DefaultContextMenusEnabled := false;
+  Browser.BuiltInErrorPageEnabled := false;
 end;
 
 procedure TMainForm.Exit1Click(Sender: TObject);
@@ -292,6 +357,35 @@ begin
 
   // Init
   InitializeSite( true );
+end;
+
+procedure TMainForm.FormResize(Sender: TObject);
+var
+  Sz: integer;
+begin
+  // Size
+  Sz := 2;
+
+  if ClientHeight < 600 then
+    Sz := 1;
+
+  // UI
+  if Sz = 1 then begin
+    Panel1.Align := alTop;
+
+    ErrorPane.Margins.Top := 15;
+    ErrorPane.Margins.Right := 50;
+    ErrorPane.Margins.Bottom := 15;
+    ErrorPane.Margins.Left := 50;
+  end
+  else begin
+    Panel1.Align := alBottom;
+
+    ErrorPane.Margins.Top := 100;
+    ErrorPane.Margins.Right := 100;
+    ErrorPane.Margins.Bottom := 100;
+    ErrorPane.Margins.Left := 100;
+  end;
 end;
 
 procedure TMainForm.FormShow(Sender: TObject);
