@@ -207,10 +207,6 @@ end;
 
 procedure TMainForm.Button2Click(Sender: TObject);
 begin
-  // Ui
-  ErrorPane.Hide;
-  Browser.Show;
-
   // Init
   InitializeSite(false);
 end;
@@ -230,6 +226,9 @@ procedure TMainForm.InitializeSite(FirstLoad: boolean);
 begin
   // UI
   StartupLogo.Show;
+
+  Browser.Show;
+  ErrorPane.Hide;
 
   // Align
   Browser.Align := alNone;

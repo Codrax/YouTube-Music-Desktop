@@ -228,9 +228,6 @@ object MainForm: TMainForm
     ShowCaption = False
     TabOrder = 0
     Visible = False
-    ExplicitLeft = 95
-    ExplicitTop = 95
-    ExplicitHeight = 462
     object Image1: TImage
       Left = 0
       Top = 0
@@ -828,7 +825,6 @@ object MainForm: TMainForm
       Style = bsCommandLink
       TabOrder = 1
       OnClick = Button2Click
-      ExplicitTop = 226
     end
     object Panel1: TPanel
       Left = 0
@@ -842,7 +838,6 @@ object MainForm: TMainForm
       ParentColor = True
       ShowCaption = False
       TabOrder = 2
-      ExplicitTop = 525
       object Label3: TLabel
         Left = 0
         Top = 0
