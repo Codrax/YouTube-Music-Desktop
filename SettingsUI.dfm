@@ -153,6 +153,28 @@ object SettingsForm: TSettingsForm
     Font.Style = []
     ParentFont = False
   end
+  object Label13: TLabel
+    Left = 24
+    Top = 294
+    Width = 68
+    Height = 17
+    Caption = 'Application'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWhite
+    Font.Height = -13
+    Font.Name = 'Segoe UI Semibold'
+    Font.Style = []
+    ParentFont = False
+  end
+  object Label14: TLabel
+    Left = 48
+    Top = 316
+    Width = 250
+    Height = 19
+    AutoSize = False
+    Caption = 'Check for updates once every day'
+    Layout = tlCenter
+  end
   object Panel1: TPanel
     Left = 0
     Top = 401
@@ -278,5 +300,32 @@ object SettingsForm: TSettingsForm
     TabOrder = 7
     StyleElements = []
     OnClick = CheckBox4Click
+  end
+  object CheckBox5: TCheckBox
+    Left = 24
+    Top = 317
+    Width = 275
+    Height = 18
+    Checked = True
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clRed
+    Font.Height = -12
+    Font.Name = 'Segoe UI'
+    Font.Style = []
+    ParentFont = False
+    State = cbChecked
+    TabOrder = 8
+    StyleElements = []
+    OnClick = CheckBox5Click
+  end
+  object Button4: TButton
+    Left = 24
+    Top = 339
+    Width = 275
+    Height = 40
+    Caption = 'Check for updates now'
+    Style = bsCommandLink
+    TabOrder = 9
+    OnClick = Button4Click
   end
 end

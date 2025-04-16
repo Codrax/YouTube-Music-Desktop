@@ -5,9 +5,9 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Winapi.WebView2, Winapi.ActiveX,
-  Vcl.Edge, Cod.SysUtils, Cod.Files, Cod.Windows, Vcl.StdCtrls,
-  Cod.IniSettings, Vcl.ExtCtrls, Winapi.ShlObj,
-  Vcl.Menus, Vcl.Imaging.pngimage, SettingsUI;
+  Vcl.Edge, Cod.SysUtils, Cod.Files, Cod.Windows, Vcl.StdCtrls, Cod.Internet,
+  Cod.IniSettings, Vcl.ExtCtrls, Winapi.ShlObj, DateUtils, Cod.Version, Cod.StringUtils,
+  Vcl.Menus, Vcl.Imaging.pngimage, SettingsUI, UITypes;
 
 const IID_ICoreWebView2EnvironmentOptions6: TGUID = '{57D29CC3-C84F-42A0-B0E2-EFFBD5E179DE}';
 
@@ -44,7 +44,7 @@ end;
     N3: TMenuItem;
     Givefeedback1: TMenuItem;
     StartupLogo: TImage;
-    Timer1: TTimer;
+    DelayedUpdateCheck: TTimer;
     ErrorPane: TPanel;
     Image1: TImage;
     Label1: TLabel;
@@ -67,12 +67,12 @@ end;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure FormResize(Sender: TObject);
+    procedure DelayedUpdateCheckTimer(Sender: TObject);
   protected
     Browser: TMainBrowser;
 
     procedure WMSysCommand(var Message: TWMSysCommand); message WM_SYSCOMMAND;
     procedure WMRestoreAppFromTray(var Message: TMessage); message WM_RESTOREAPPFROMTRAY;
-
 
   private
     procedure CloseProgram;
@@ -99,15 +99,19 @@ end;
   public
     { Public declarations }
     InTray: boolean;
+
+    // Update
+    procedure DoUpdateCheck(NotifyStatus: boolean);
   end;
 
 const
-  VERSION = '1.0.0';
+  VERSION: TVersion = (Major: 1; Minor: 0; Maintenance: 0);
 
   APP_NAME = 'YouTube Music Desktop';
 
   DEVELOPER_URL = 'https://www.codrutsoft.com/';
   FEEDBACK_URL = 'https://github.com/Codrax/YouTube-Music-Desktop';
+  WEBSITE_APP_LINK = 'https://www.codrutsoft.com/apps/youtube-music-desktop/';
 
   APP_USER_MODEL_ID = 'com.codrutsoft.youtubemusicdesktop';
 
@@ -433,6 +437,72 @@ end;
 procedure TMainForm.ShowYouTubeMusic1Click(Sender: TObject);
 begin
   RestoreFromTray;
+end;
+
+procedure TMainForm.DelayedUpdateCheckTimer(Sender: TObject);
+begin
+  TTimer(Sender).Enabled := false;
+
+  // Get
+  if not Settings.Get<boolean>('app', 'check-updates', true) then
+    Exit;
+
+  // Last
+  const LastUpdateCheck = Settings.Get<double>('status', 'last-update-check', 0);
+  if (LastUpdateCheck <> 0) and (DaysBetween(Now, LastUpdateCheck) < 1) then
+    Exit;
+
+  // Is in tray
+  if InTray then
+    Exit;
+
+  // Write last update check
+  Settings.Put<double>('status', 'last-update-check', Now);
+
+  // Update
+  DoUpdateCheck(false);
+end;
+
+procedure TMainForm.DoUpdateCheck(NotifyStatus: boolean);
+var
+  Server: TVersion;
+begin
+  // Start update check
+  try
+    Server.APILoad('youtube-music-desktop');
+
+    if not Server.NewerThan(VERSION) then begin
+      if NotifyStatus then
+        MessageDLG('There are no new updates avalabile.', mtWarning, [mbOk], 0);
+      Exit;
+    end;
+
+    // Alert user
+    if MessageDLG('There is a new version of YouTube Music Desktop avalabile on the server. Do you wish to download It now? The app will close to update', mtWarning, [mbYes, mbNo], 0) <> mrYes then
+      Exit;
+
+    // Start download
+    try
+      const DownloadLink = Server.GetDownloadLink();
+      const OutputFile = ReplaceWinPath(Format('%%TEMP%%\updateinstall_%S.exe', [
+        GenerateString(8, [TStrGenFlag.UppercaseLetters, TStrGenFlag.LowercaseLetters, TStrGenFlag.Numbers])
+        ]));
+      DownloadFile(DownloadLink, OutputFile);
+
+      // Run
+      ShellRun( OutputFile, true, '-ad' );
+
+      // Close
+      Application.Terminate;
+    except
+      if MessageDLG('The download failed. Open the website?', mtWarning, [mbYes, mbNo], 0) <> mrYes then
+        Exit;
+
+      ShellRun(WEBSITE_APP_LINK, true);
+    end;
+  except
+    // failure
+  end;
 end;
 
 procedure TMainForm.TrayIconDblClick(Sender: TObject);

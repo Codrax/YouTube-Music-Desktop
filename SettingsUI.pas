@@ -30,6 +30,10 @@ type
     Label11: TLabel;
     CheckBox4: TCheckBox;
     Label12: TLabel;
+    Label13: TLabel;
+    Label14: TLabel;
+    CheckBox5: TCheckBox;
+    Button4: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
@@ -37,6 +41,8 @@ type
     procedure CheckBox2Click(Sender: TObject);
     procedure CheckBox1Click(Sender: TObject);
     procedure CheckBox4Click(Sender: TObject);
+    procedure CheckBox5Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
   private
     { Private declarations }
     procedure UpdateStartupFile;
@@ -62,6 +68,18 @@ end;
 procedure TSettingsForm.Button3Click(Sender: TObject);
 begin
   ShellRun(FEEDBACK_URL, true);
+end;
+
+procedure TSettingsForm.Button4Click(Sender: TObject);
+begin
+  TButton(Sender).Enabled := false;
+  Application.ProcessMessages;
+  try
+    // Check
+    MainForm.DoUpdateCheck(true);
+  finally
+    TButton(Sender).Enabled := true;
+  end;
 end;
 
 procedure TSettingsForm.CheckBox1Click(Sender: TObject);
@@ -97,9 +115,17 @@ begin
   Settings.Put<boolean>('general', 'continue-playback', TCheckBox(Sender).Checked);
 end;
 
+procedure TSettingsForm.CheckBox5Click(Sender: TObject);
+begin
+  if not TWinControl(Sender).Focused then
+    Exit;
+
+  Settings.Put<boolean>('app', 'check-updates', TCheckBox(Sender).Checked);
+end;
+
 procedure TSettingsForm.FormCreate(Sender: TObject);
 begin
-  Label12.Caption := 'Version ' + VERSION;
+  Label12.Caption := 'Version ' + VERSION.ToString;
 
   // Theme (must be after loading position)
   DarkModeApplyToWindow(Handle, true);
@@ -108,6 +134,7 @@ begin
   CheckBox2.Checked := Settings.Get<boolean>('start-minimized', 'startup', true);
   CheckBox3.Checked := Settings.Get<boolean>('minimize-to-tray', 'general', true);
   CheckBox4.Checked := Settings.Get<boolean>('general', 'continue-playback', true);
+  CheckBox5.Checked := Settings.Get<boolean>('app', 'check-updates', true);
 end;
 
 procedure TSettingsForm.UpdateStartupFile;

@@ -917,9 +917,10 @@ object MainForm: TMainForm
       OnClick = Exit1Click
     end
   end
-  object Timer1: TTimer
-    Interval = 1
-    Left = 304
-    Top = 16
+  object DelayedUpdateCheck: TTimer
+    Interval = 2000
+    OnTimer = DelayedUpdateCheckTimer
+    Left = 872
+    Top = 40
   end
 end
