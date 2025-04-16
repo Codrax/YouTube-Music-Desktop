@@ -16,7 +16,6 @@ object MainForm: TMainForm
   OnCloseQuery = FormCloseQuery
   OnCreate = FormCreate
   OnResize = FormResize
-  OnShow = FormShow
   TextHeight = 21
   object StartupLogo: TImage
     AlignWithMargins = True

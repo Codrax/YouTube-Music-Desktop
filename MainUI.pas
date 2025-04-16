@@ -63,7 +63,6 @@ end;
     procedure YourLibrary1Click(Sender: TObject);
     procedure Explore1Click(Sender: TObject);
     procedure Givefeedback1Click(Sender: TObject);
-    procedure FormShow(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure FormResize(Sender: TObject);
@@ -389,12 +388,6 @@ begin
     ErrorPane.Margins.Bottom := 100;
     ErrorPane.Margins.Left := 100;
   end;
-end;
-
-procedure TMainForm.FormShow(Sender: TObject);
-begin
-  // Enable tray
-  TrayIcon.Visible := true;
 end;
 
 procedure TMainForm.MinimizeToTray;

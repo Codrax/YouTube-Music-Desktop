@@ -43,5 +43,9 @@ begin
     MainForm.InTray := true;
   end;
 
+  // Enable tray
+  MainForm.TrayIcon.Visible := true;
+
+  // Run
   Application.Run;
 end.
