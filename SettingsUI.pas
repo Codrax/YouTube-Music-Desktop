@@ -29,6 +29,7 @@ type
     Panel2: TPanel;
     Label11: TLabel;
     CheckBox4: TCheckBox;
+    Label12: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
@@ -98,6 +99,8 @@ end;
 
 procedure TSettingsForm.FormCreate(Sender: TObject);
 begin
+  Label12.Caption := 'Version ' + VERSION;
+
   // Theme (must be after loading position)
   DarkModeApplyToWindow(Handle, true);
 

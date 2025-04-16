@@ -108,7 +108,7 @@ object SettingsForm: TSettingsForm
   end
   object Label9: TLabel
     Left = 352
-    Top = 150
+    Top = 148
     Width = 168
     Height = 20
     Caption = 'Made by Codrut Software'
@@ -139,6 +139,20 @@ object SettingsForm: TSettingsForm
     Caption = 'Continue playback after re-opening the app'
     Layout = tlCenter
   end
+  object Label12: TLabel
+    Left = 496
+    Top = 167
+    Width = 49
+    Height = 13
+    Alignment = taRightJustify
+    Caption = 'Version x,x'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWhite
+    Font.Height = -11
+    Font.Name = 'Segoe UI Semilight'
+    Font.Style = []
+    ParentFont = False
+  end
   object Panel1: TPanel
     Left = 0
     Top = 401
@@ -165,8 +179,6 @@ object SettingsForm: TSettingsForm
       ModalResult = 1
       Style = bsCommandLink
       TabOrder = 0
-      ExplicitLeft = 456
-      ExplicitTop = -24
     end
   end
   object CheckBox1: TCheckBox

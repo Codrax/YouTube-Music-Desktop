@@ -259,7 +259,7 @@ end;
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
   // Data
-  AppData := GetPathInAppData('YouTube Music Desktop', TAppDataType.Roaming);
+  AppData := GetPathInAppData(APP_NAME, TAppDataType.Roaming);
 
   // Settings
   Settings := TSettingsManager.Create(AppData + 'settings.ini');
