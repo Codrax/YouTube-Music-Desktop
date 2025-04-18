@@ -8,15 +8,19 @@ uses
   Cod.Windows,
   Cod.Instances,
   MainUI in 'MainUI.pas' {MainForm},
-  SettingsUI in 'SettingsUI.pas' {SettingsForm};
+  SettingsUI in 'SettingsUI.pas' {SettingsForm},
+  Edge2 in 'Edge2.pas',
+  WebView2Extended in 'WebView2Extended.pas';
 
 {$R *.res}
 
 begin
+  // Debug
+  DebugMode := HasParameter('debug');
+
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.CreateForm(TMainForm, MainForm);
-
   // Instance
   SetSemaphore( APP_USER_MODEL_ID );
 
@@ -34,7 +38,6 @@ begin
 
   if HasAppInfo then
     const Info = GetAppInfo;
-
 
   // Start hidden
   if HasParameter('tray') then begin

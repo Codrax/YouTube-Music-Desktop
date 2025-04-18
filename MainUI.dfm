@@ -3,7 +3,7 @@ object MainForm: TMainForm
   Top = 0
   Caption = 'YouTube Music Desktop'
   ClientHeight = 662
-  ClientWidth = 997
+  ClientWidth = 1184
   Color = clBlack
   Constraints.MinHeight = 400
   Constraints.MinWidth = 400
@@ -19,9 +19,9 @@ object MainForm: TMainForm
   TextHeight = 21
   object StartupLogo: TImage
     AlignWithMargins = True
-    Left = 50
+    Left = 295
     Top = 50
-    Width = 897
+    Width = 839
     Height = 562
     Margins.Left = 50
     Margins.Top = 50
@@ -208,12 +208,13 @@ object MainForm: TMainForm
     Proportional = True
     ExplicitLeft = 45
     ExplicitTop = 45
+    ExplicitWidth = 897
   end
   object ErrorPane: TPanel
     AlignWithMargins = True
-    Left = 100
+    Left = 345
     Top = 50
-    Width = 797
+    Width = 739
     Height = 562
     Margins.Left = 100
     Margins.Top = 50
@@ -230,7 +231,7 @@ object MainForm: TMainForm
     object Image1: TImage
       Left = 0
       Top = 0
-      Width = 797
+      Width = 739
       Height = 100
       Align = alTop
       Picture.Data = {
@@ -768,11 +769,12 @@ object MainForm: TMainForm
         3B59065953E75F1EAE09DEC6FF0385471F8D4BA5E2D50000000049454E44AE42
         6082}
       Proportional = True
+      ExplicitWidth = 797
     end
     object Label1: TLabel
       Left = 0
       Top = 100
-      Width = 797
+      Width = 739
       Height = 32
       Align = alTop
       Caption = 'Hang on, something didn'#39't work quite right...'
@@ -788,7 +790,7 @@ object MainForm: TMainForm
     object Label2: TLabel
       Left = 0
       Top = 132
-      Width = 797
+      Width = 739
       Height = 21
       Align = alTop
       Caption = 
@@ -801,7 +803,7 @@ object MainForm: TMainForm
       AlignWithMargins = True
       Left = 3
       Top = 163
-      Width = 791
+      Width = 733
       Height = 50
       Margins.Top = 10
       Align = alTop
@@ -815,7 +817,7 @@ object MainForm: TMainForm
       AlignWithMargins = True
       Left = 3
       Top = 231
-      Width = 791
+      Width = 733
       Height = 50
       Margins.Top = 15
       Align = alTop
@@ -828,7 +830,7 @@ object MainForm: TMainForm
     object Panel1: TPanel
       Left = 0
       Top = 528
-      Width = 797
+      Width = 739
       Height = 34
       Align = alBottom
       AutoSize = True
@@ -840,7 +842,7 @@ object MainForm: TMainForm
       object Label3: TLabel
         Left = 0
         Top = 0
-        Width = 797
+        Width = 739
         Height = 17
         Align = alTop
         Caption = 'ERROR STATUS:'
@@ -856,7 +858,7 @@ object MainForm: TMainForm
       object Label4: TLabel
         Left = 0
         Top = 17
-        Width = 797
+        Width = 739
         Height = 17
         Align = alTop
         Caption = 'UNKNOWN_ERROR_STATUS'
@@ -871,16 +873,284 @@ object MainForm: TMainForm
       end
     end
   end
+  object DebugPanel: TPanel
+    AlignWithMargins = True
+    Left = 10
+    Top = 25
+    Width = 225
+    Height = 612
+    Margins.Left = 10
+    Margins.Top = 25
+    Margins.Right = 10
+    Margins.Bottom = 25
+    Align = alLeft
+    ParentColor = True
+    ShowCaption = False
+    TabOrder = 1
+    Visible = False
+    object Label5: TLabel
+      Left = 16
+      Top = 10
+      Width = 86
+      Height = 21
+      Caption = 'Debugging'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWhite
+      Font.Height = -16
+      Font.Name = 'Segoe UI'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object Label6: TLabel
+      Left = 16
+      Top = 37
+      Width = 65
+      Height = 21
+      Caption = 'WebView'
+    end
+    object Label7: TLabel
+      Left = 16
+      Top = 165
+      Width = 44
+      Height = 21
+      Caption = 'Panels'
+    end
+    object Label8: TLabel
+      Left = 16
+      Top = 235
+      Width = 62
+      Height = 21
+      Caption = 'Navigate'
+    end
+    object Label18: TLabel
+      Left = 16
+      Top = 306
+      Width = 73
+      Height = 21
+      Caption = 'Extensions'
+    end
+    object Button4: TButton
+      Left = 16
+      Top = 64
+      Width = 75
+      Height = 25
+      Caption = 'Show'
+      TabOrder = 0
+      OnClick = Button4Click
+    end
+    object Button5: TButton
+      Left = 97
+      Top = 64
+      Width = 75
+      Height = 25
+      Caption = 'Hide'
+      TabOrder = 1
+      OnClick = Button5Click
+    end
+    object Button6: TButton
+      Left = 16
+      Top = 192
+      Width = 75
+      Height = 25
+      Caption = 'Hide'
+      TabOrder = 5
+      OnClick = Button6Click
+    end
+    object Edit1: TEdit
+      Left = 16
+      Top = 262
+      Width = 154
+      Height = 29
+      ParentColor = True
+      TabOrder = 6
+      Text = 'edge://about'
+      TextHint = 'URL'
+    end
+    object Button7: TButton
+      Left = 176
+      Top = 261
+      Width = 42
+      Height = 30
+      Caption = 'Go'
+      TabOrder = 7
+      OnClick = Button7Click
+    end
+    object Button8: TButton
+      Left = 16
+      Top = 95
+      Width = 156
+      Height = 25
+      Caption = 'Navigate home'
+      TabOrder = 2
+      OnClick = Button8Click
+    end
+    object Button9: TButton
+      Left = 16
+      Top = 126
+      Width = 75
+      Height = 25
+      Caption = 'Refresh'
+      TabOrder = 3
+      OnClick = Button9Click
+    end
+    object Button10: TButton
+      Left = 97
+      Top = 126
+      Width = 75
+      Height = 25
+      Caption = 'Blank'
+      TabOrder = 4
+      OnClick = Button10Click
+    end
+    object Panel2: TPanel
+      Left = 1
+      Top = 448
+      Width = 223
+      Height = 163
+      Align = alBottom
+      ShowCaption = False
+      TabOrder = 12
+      object Label9: TLabel
+        Left = 13
+        Top = 10
+        Width = 47
+        Height = 21
+        Caption = 'Status'
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWhite
+        Font.Height = -16
+        Font.Name = 'Segoe UI'
+        Font.Style = [fsBold]
+        ParentFont = False
+      end
+      object Label10: TLabel
+        Left = 13
+        Top = 64
+        Width = 42
+        Height = 21
+        Caption = 'IsNav:'
+      end
+      object Label11: TLabel
+        Left = 61
+        Top = 64
+        Width = 65
+        Height = 21
+        Caption = 'unknown'
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWhite
+        Font.Height = -16
+        Font.Name = 'Segoe UI'
+        Font.Style = [fsItalic]
+        ParentFont = False
+      end
+      object Label12: TLabel
+        Left = 13
+        Top = 91
+        Width = 32
+        Height = 21
+        Caption = 'URL:'
+      end
+      object Label13: TLabel
+        Left = 51
+        Top = 91
+        Width = 65
+        Height = 21
+        Caption = 'unknown'
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWhite
+        Font.Height = -16
+        Font.Name = 'Segoe UI'
+        Font.Style = [fsItalic]
+        ParentFont = False
+      end
+      object Label14: TLabel
+        Left = 13
+        Top = 37
+        Width = 57
+        Height = 21
+        Caption = 'App ver:'
+      end
+      object Label15: TLabel
+        Left = 76
+        Top = 37
+        Width = 65
+        Height = 21
+        Caption = 'unknown'
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWhite
+        Font.Height = -16
+        Font.Name = 'Segoe UI'
+        Font.Style = [fsItalic]
+        ParentFont = False
+      end
+      object Label16: TLabel
+        Left = 15
+        Top = 118
+        Width = 79
+        Height = 21
+        Caption = 'Last ECode:'
+      end
+      object Label17: TLabel
+        Left = 100
+        Top = 118
+        Width = 65
+        Height = 21
+        Caption = 'unknown'
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWhite
+        Font.Height = -16
+        Font.Name = 'Segoe UI'
+        Font.Style = [fsItalic]
+        ParentFont = False
+      end
+    end
+    object Button3: TButton
+      Left = 16
+      Top = 399
+      Width = 202
+      Height = 25
+      Caption = 'List extensions'
+      TabOrder = 11
+      OnClick = Button3Click
+    end
+    object Button11: TButton
+      Left = 12
+      Top = 368
+      Width = 126
+      Height = 25
+      Caption = 'Install ext'
+      TabOrder = 9
+      OnClick = Button11Click
+    end
+    object Edit2: TEdit
+      Left = 16
+      Top = 333
+      Width = 202
+      Height = 29
+      ParentColor = True
+      TabOrder = 8
+      TextHint = 'Path'
+    end
+    object Button12: TButton
+      Left = 144
+      Top = 368
+      Width = 74
+      Height = 25
+      Caption = 'Remove'
+      TabOrder = 10
+      OnClick = Button12Click
+    end
+  end
   object TrayIcon: TTrayIcon
     Hint = 'YouTube Music Desktop'
     PopupMenu = TrayMenu
     OnDblClick = TrayIconDblClick
-    Left = 48
-    Top = 24
+    Left = 352
+    Top = 32
   end
   object TrayMenu: TPopupMenu
-    Left = 160
-    Top = 24
+    Left = 416
+    Top = 32
     object ShowYouTubeMusic1: TMenuItem
       Caption = 'Show YouTube Music'
       Visible = False
@@ -904,6 +1174,13 @@ object MainForm: TMainForm
     object N3: TMenuItem
       Caption = '-'
     end
+    object Settings1: TMenuItem
+      Caption = 'Settings...'
+      OnClick = Settings1Click
+    end
+    object N4: TMenuItem
+      Caption = '-'
+    end
     object Givefeedback1: TMenuItem
       Caption = 'Give feedback...'
       OnClick = Givefeedback1Click
@@ -921,5 +1198,19 @@ object MainForm: TMainForm
     OnTimer = DelayedUpdateCheckTimer
     Left = 872
     Top = 40
+  end
+  object DebugStat: TTimer
+    Enabled = False
+    Interval = 10
+    OnTimer = DebugStatTimer
+    Left = 186
+    Top = 41
+  end
+  object StartURLLoader: TTimer
+    Enabled = False
+    Interval = 1
+    OnTimer = StartURLLoaderTimer
+    Left = 985
+    Top = 42
   end
 end

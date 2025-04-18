@@ -5,9 +5,10 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Winapi.WebView2, Winapi.ActiveX,
-  Vcl.Edge, Cod.SysUtils, Cod.Files, Cod.Windows, Vcl.StdCtrls, Cod.Internet,
-  Cod.IniSettings, Vcl.ExtCtrls, Winapi.ShlObj, DateUtils, Cod.Version, Cod.StringUtils,
-  Vcl.Menus, Vcl.Imaging.pngimage, SettingsUI, UITypes;
+  Vcl.ExtCtrls, Vcl.Menus, Vcl.StdCtrls, Vcl.Imaging.pngimage, Cod.Types,
+  {Vcl.Edge, } Edge2, Cod.SysUtils, Cod.Files, Cod.Windows, Cod.Internet,
+  Cod.IniSettings, Winapi.ShlObj, DateUtils, Cod.Version, Cod.StringUtils,
+  SettingsUI, UITypes, IOUtils;
 
 const IID_ICoreWebView2EnvironmentOptions6: TGUID = '{57D29CC3-C84F-42A0-B0E2-EFFBD5E179DE}';
 
@@ -18,14 +19,14 @@ type
   ICoreWebView2EnvironmentOptions6 = interface(IUnknown)
     function Get_AreBrowserExtensionsEnabled(out IsVisible: Integer): HResult; stdcall;
     function Set_AreBrowserExtensionsEnabled(IsVisible: Integer): HResult; stdcall;
-end;
+  end;
+
   // Define custom class
   TMainBrowser = class(TCustomEdgeBrowser)
   private
     procedure HandleCreateWebViewCompleted(Sender: TCustomEdgeBrowser; AResult: HResult);
-
   protected
-    procedure ClearHistory;
+    procedure OpenDevTools;
 
   public
     constructor Create(AOwner: TComponent); override;
@@ -54,6 +55,38 @@ end;
     Panel1: TPanel;
     Label3: TLabel;
     Label4: TLabel;
+    DebugPanel: TPanel;
+    Label5: TLabel;
+    Label6: TLabel;
+    Button4: TButton;
+    Button5: TButton;
+    Label7: TLabel;
+    Button6: TButton;
+    Label8: TLabel;
+    Edit1: TEdit;
+    Button7: TButton;
+    DebugStat: TTimer;
+    Button8: TButton;
+    Button9: TButton;
+    Button10: TButton;
+    Panel2: TPanel;
+    Label9: TLabel;
+    Label10: TLabel;
+    Label11: TLabel;
+    Label12: TLabel;
+    Label13: TLabel;
+    Label14: TLabel;
+    Label15: TLabel;
+    Button3: TButton;
+    Label16: TLabel;
+    Label17: TLabel;
+    Button11: TButton;
+    Edit2: TEdit;
+    Button12: TButton;
+    Label18: TLabel;
+    StartURLLoader: TTimer;
+    Settings1: TMenuItem;
+    N4: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure TrayIconDblClick(Sender: TObject);
@@ -64,12 +97,23 @@ end;
     procedure Explore1Click(Sender: TObject);
     procedure Givefeedback1Click(Sender: TObject);
     procedure Button1Click(Sender: TObject);
-    procedure Button2Click(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure DelayedUpdateCheckTimer(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+    procedure Button6Click(Sender: TObject);
+    procedure Button7Click(Sender: TObject);
+    procedure DebugStatTimer(Sender: TObject);
+    procedure Button8Click(Sender: TObject);
+    procedure Button9Click(Sender: TObject);
+    procedure Button10Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
+    procedure Button11Click(Sender: TObject);
+    procedure Button12Click(Sender: TObject);
+    procedure StartURLLoaderTimer(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    procedure Settings1Click(Sender: TObject);
   protected
-    Browser: TMainBrowser;
-
     procedure WMSysCommand(var Message: TWMSysCommand); message WM_SYSCOMMAND;
     procedure WMRestoreAppFromTray(var Message: TMessage); message WM_RESTOREAPPFROMTRAY;
 
@@ -83,9 +127,16 @@ end;
     // Window
     procedure CreateSystemMenu;
 
+    // Forms
+    procedure OpenSettingsForm;
+
+    // Utils
+    procedure ReloadWebViewBase;
+
     // Browser
     procedure InitializeSite(FirstLoad: boolean=false);
     procedure WaitBrowserNavigation;
+    procedure WaitBrowserInitialization;
 
     // Main
     procedure NavigateHome;
@@ -94,8 +145,11 @@ end;
     procedure BrowserNavigationStarting(Sender: TCustomEdgeBrowser; Args: TNavigationStartingEventArgs);
     procedure BrowserNavigationCompleted(Sender: TCustomEdgeBrowser;
       IsSuccess: Boolean; WebErrorStatus: COREWEBVIEW2_WEB_ERROR_STATUS);
+
     procedure CreatingWebViewFinalized(Sender: TCustomEdgeBrowser; AResult: HResult);
   public
+    Browser: TMainBrowser;
+
     { Public declarations }
     InTray: boolean;
 
@@ -104,7 +158,7 @@ end;
   end;
 
 const
-  VERSION: TVersion = (Major: 1; Minor: 0; Maintenance: 0);
+  VERSION: TVersion = (Major: 1; Minor: 1; Maintenance: 0);
 
   APP_NAME = 'YouTube Music Desktop';
 
@@ -114,29 +168,47 @@ const
 
   APP_USER_MODEL_ID = 'com.codrutsoft.youtubemusicdesktop';
 
+  // Menu (titlebar)
   MENU_ACTION = 999;
   MENU_ACTION_RELOAD = MENU_ACTION+1;
   MENU_ACTION_TRAY = MENU_ACTION+2;
   MENU_ACTION_SETTINGS = MENU_ACTION+3;
 
+  // Links
   YTMUSIC_BASE_URL = 'https://music.youtube.com/';
   YTMUSIC_URL = YTMUSIC_BASE_URL;
   YTMUSIC_URL_LIBRARY = YTMUSIC_BASE_URL + 'library';
   YTMUSIC_URL_EXPLORE = YTMUSIC_BASE_URL + 'explore';
+
+  // Dirs
+  DIR_EXT = 'Extensions\';
+
+  // Default
+  HOME_URL = YTMUSIC_URL;
 
 var
   MainForm: TMainForm;
 
   // System
   AppData: string;
+  AppDir: string;
   Settings: TSettingsManager;
+  Status: TSectionSettingsManager;
 
+  DebugMode: boolean;
   AppInitialized: boolean;
 
   // Browser
+  BrowserInitialized: boolean;
   BrowserNavigating: boolean;
+
+  // Utils
+  StartURL: string;
   ShowWhenLoaded: boolean;
   InitializeWhenLoaded: boolean;
+
+  // App state
+  CurrentState: string;
 
 implementation
 
@@ -145,6 +217,8 @@ implementation
 procedure TMainForm.BrowserNavigationCompleted(Sender: TCustomEdgeBrowser;
   IsSuccess: Boolean; WebErrorStatus: COREWEBVIEW2_WEB_ERROR_STATUS);
 begin
+  CurrentState := 'Navigation done';
+
   BrowserNavigating := false;
 
   // Hidden
@@ -160,7 +234,7 @@ begin
   end;
 
   // Error
-  if WebErrorStatus <> 0 then begin
+  if not (WebErrorStatus in [COREWEBVIEW2_WEB_ERROR_STATUS_UNKNOWN, COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_ABORTED]) then begin
     var S := '';
     case WebErrorStatus of
       COREWEBVIEW2_WEB_ERROR_STATUS_CERTIFICATE_COMMON_NAME_IS_INCORRECT: S := 'CERTIFICATE_COMMON_NAME_IS_INCORRECT';
@@ -171,7 +245,7 @@ begin
       COREWEBVIEW2_WEB_ERROR_STATUS_SERVER_UNREACHABLE: S := 'SERVER_UNREACHABLE';
       COREWEBVIEW2_WEB_ERROR_STATUS_TIMEOUT: S := 'TIMEOUT';
       COREWEBVIEW2_WEB_ERROR_STATUS_ERROR_HTTP_INVALID_SERVER_RESPONSE: S := 'ERROR_HTTP_INVALID_SERVER_RESPONSE';
-      COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_ABORTED: S := 'CONNECTION_ABORTED';
+      //COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_ABORTED: S := 'CONNECTION_ABORTED';
       COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_RESET: S := 'CONNECTION_RESET';
       COREWEBVIEW2_WEB_ERROR_STATUS_DISCONNECTED: S := 'DISCONNECTED';
       COREWEBVIEW2_WEB_ERROR_STATUS_CANNOT_CONNECT: S := 'CANNOT_CONNECT';
@@ -189,29 +263,91 @@ begin
     ErrorPane.Show;
 
     Label4.Caption := S;
+  end else begin
+    Browser.Show;
+    ErrorPane.Hide;
   end;
 end;
 
 procedure TMainForm.BrowserNavigationStarting(Sender: TCustomEdgeBrowser;
   Args: TNavigationStartingEventArgs);
 begin
+  CurrentState := 'Navigating';
+
   BrowserNavigating := true;
+end;
+
+procedure TMainForm.Button10Click(Sender: TObject);
+begin
+  Browser.Navigate('about:blank');
+end;
+
+procedure TMainForm.Button11Click(Sender: TObject);
+begin
+  Browser.AddExtension( Edit2.Text );
+end;
+
+procedure TMainForm.Button12Click(Sender: TObject);
+begin
+  Browser.RemoveExtension( Edit2.Text );
 end;
 
 procedure TMainForm.Button1Click(Sender: TObject);
 begin
   // Re-fresh
   Browser.Refresh;
-
-  // Ui
-  ErrorPane.Hide;
-  Browser.Show;
 end;
 
 procedure TMainForm.Button2Click(Sender: TObject);
 begin
-  // Init
-  InitializeSite(false);
+  // Re-load
+  ReloadWebViewBase
+end;
+
+procedure TMainForm.Button3Click(Sender: TObject);
+var
+  S: string;
+  A: TArray<string>;
+begin
+  A := Browser.GetAllExtensions;
+  for var P in A do
+    S := S + P + #13;
+
+  ShowMessage(S);
+end;
+
+procedure TMainForm.Button4Click(Sender: TObject);
+begin
+  Browser.Show;
+
+  // Align
+  Browser.Align := alClient;
+end;
+
+procedure TMainForm.Button5Click(Sender: TObject);
+begin
+  Browser.Hide;
+end;
+
+procedure TMainForm.Button6Click(Sender: TObject);
+begin
+  ErrorPane.Hide;
+  StartupLogo.Hide;
+end;
+
+procedure TMainForm.Button7Click(Sender: TObject);
+begin
+  Browser.Navigate(Edit1.Text);
+end;
+
+procedure TMainForm.Button8Click(Sender: TObject);
+begin
+  NavigateHome;
+end;
+
+procedure TMainForm.Button9Click(Sender: TObject);
+begin
+  Browser.Refresh;
 end;
 
 procedure TMainForm.CloseProgram;
@@ -225,39 +361,37 @@ begin
   ShellRun(FEEDBACK_URL, true);
 end;
 
-procedure TMainForm.InitializeSite(FirstLoad: boolean);
+procedure TMainForm.InitializeSite;
 begin
+  CurrentState := 'Initializing browser...';
+
   // UI
-  StartupLogo.Show;
+  if not DebugMode then
+    StartupLogo.Show;
 
   Browser.Show;
   ErrorPane.Hide;
 
   // Align
-  Browser.Align := alNone;
-  Browser.Width := ClientWidth;
-  Browser.Height := ClientHeight;
-  Browser.Top := -Browser.Height;
+  if not DebugMode then begin
+    Browser.Align := alNone;
+    Browser.Width := ClientWidth;
+    Browser.Height := ClientHeight;
+    Browser.Top := -Browser.Height;
+  end;
+
+  BrowserInitialized := false;
 
   // Init
   Browser.ReinitializeWebView;
+  Application.ProcessMessages;
 
-  // Default page
-  InitializeWhenLoaded := true;
-  ShowWhenLoaded := true;
+  // Wait for initializaiton
+  WaitBrowserInitialization;
 
   // Navigate
-  if FirstLoad and Settings.Get<boolean>('general', 'continue-playback', true) then begin
-    const URL = Settings.Get<string>('last-location', 'session', '');
-
-    // Nav
-    if URL.StartsWith(YTMUSIC_BASE_URL) then
-      Browser.Navigate( URL )
-    else
-      NavigateHome;
-  end else
-    // Default
-    NavigateHome;
+  Browser.Navigate('about:blank');
+  WaitBrowserNavigation;
 end;
 
 procedure TMainForm.CreateSystemMenu;
@@ -277,7 +411,7 @@ begin
 
   // Item
   AddSeparator;
-  AddMenu('Reload', MENU_ACTION_RELOAD);
+  AddMenu('Reload web view', MENU_ACTION_RELOAD);
   AddSeparator;
   AddMenu('Minimize to tray', MENU_ACTION_TRAY);
   AddMenu('Settings', MENU_ACTION_SETTINGS);
@@ -285,10 +419,25 @@ end;
 
 procedure TMainForm.CreatingWebViewFinalized(Sender: TCustomEdgeBrowser;
   AResult: HResult);
+var
+  Extensions: TArray<string>;
+  Dir: string;
 begin
+  // Initialized
+  BrowserInitialized := true;
+
   // Context menu
-  Browser.DefaultContextMenusEnabled := false;
-  Browser.BuiltInErrorPageEnabled := false;
+  if not DebugMode then begin
+    Browser.DefaultContextMenusEnabled := false;
+    Browser.BuiltInErrorPageEnabled := false;
+    Browser.DevToolsEnabled := false;
+  end else
+    Browser.OpenDevTools;
+
+  // Install all extensions
+  Extensions := TDirectory.GetDirectories(AppDir + DIR_EXT);
+  for Dir in Extensions do
+    Browser.AddExtension(Dir);
 end;
 
 procedure TMainForm.Exit1Click(Sender: TObject);
@@ -306,7 +455,7 @@ end;
 
 procedure TMainForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
-  if AppInitialized and not InTray and Settings.Get<boolean>('minimize-to-tray', 'general', true) then begin
+  if AppInitialized and not InTray and not DebugMode and Settings.Get<boolean>('minimize-to-tray', 'general', true) then begin
     MinimizeToTray;
 
     CanClose := false;
@@ -325,11 +474,16 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
-  // Data
+  // Dirs
   AppData := GetPathInAppData(APP_NAME, TAppDataType.Roaming);
+  AppDir := IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
+
+  // UI
+  FixDelphiXDialogs;
 
   // Settings
   Settings := TSettingsManager.Create(AppData + 'settings.ini');
+  Status := TSectionSettingsManager.Create(AppData + 'status.ini', 'status');
 
   // Create system menu
   CreateSystemMenu;
@@ -339,6 +493,17 @@ begin
 
   // Theme (must be after loading position)
   DarkModeApplyToWindow(Handle, true);
+
+  // Debug Mode
+  if DebugMode then begin
+    DebugPanel.BringToFront;
+    DebugPanel.Show;
+    DebugStat.Enabled := true;
+    Label15.Caption := VERSION.ToString(true);
+  end else begin
+    DebugPanel.Destroy;
+    DebugStat.Destroy;
+  end;
 
   // Player
   SetCurrentProcessExplicitAppUserModelID( APP_USER_MODEL_ID );
@@ -350,6 +515,8 @@ begin
   Browser.Align := alClient;
   Browser.SendToBack; // dev
 
+  Browser.AreBrowserExtensionsEnabled := true;
+
   Browser.OnNavigationStarting := BrowserNavigationStarting;
   Browser.OnNavigationCompleted := BrowserNavigationCompleted;
   Browser.OnCreateWebViewCompleted := CreatingWebViewFinalized;
@@ -358,7 +525,18 @@ begin
   Browser.UserDataFolder := AppDataBrowser;
 
   // Init
-  InitializeSite( true );
+  InitializeSite;
+
+  // URL
+  StartURL := HOME_URL;
+  if Settings.Get<boolean>('general', 'continue-playback', true) then begin
+    const URL = Settings.Get<string>('last-location', 'session', '');
+
+    // Nav
+    if URL.StartsWith(YTMUSIC_BASE_URL) then
+      StartURL := URL;
+  end;
+  StartURLLoader.Enabled := true;
 end;
 
 procedure TMainForm.FormResize(Sender: TObject);
@@ -411,7 +589,27 @@ end;
 procedure TMainForm.NavigateHome;
 begin
   // Navigate
-  Browser.Navigate( YTMUSIC_URL );
+  Browser.Navigate( HOME_URL );
+end;
+
+procedure TMainForm.OpenSettingsForm;
+begin
+  with TSettingsForm.Create(Self) do
+    try
+      // Show
+      ShowModal;
+    finally
+      Free;
+    end;
+end;
+
+procedure TMainForm.ReloadWebViewBase;
+begin
+  InitializeSite;
+
+  //
+  StartURL := HOME_URL;
+  StartURLLoader.Enabled := true;
 end;
 
 procedure TMainForm.RestoreFromTray;
@@ -427,9 +625,33 @@ begin
   MinimizetoTray1.Visible := true;
 end;
 
+procedure TMainForm.Settings1Click(Sender: TObject);
+begin
+  OpenSettingsForm;
+end;
+
 procedure TMainForm.ShowYouTubeMusic1Click(Sender: TObject);
 begin
   RestoreFromTray;
+end;
+
+procedure TMainForm.StartURLLoaderTimer(Sender: TObject);
+begin
+  TTimer(Sender).Enabled := false;
+
+  // Default page
+  InitializeWhenLoaded := true;
+  ShowWhenLoaded := true;
+
+  // Navigate
+  Browser.Navigate( StartURL );
+end;
+
+procedure TMainForm.DebugStatTimer(Sender: TObject);
+begin
+  Label11.Caption := BooleanToString( BrowserNavigating );
+  Label13.Caption := Browser.LocationURL;
+  Label17.Caption := int64(Browser.LastErrorCode).ToString;
 end;
 
 procedure TMainForm.DelayedUpdateCheckTimer(Sender: TObject);
@@ -441,7 +663,7 @@ begin
     Exit;
 
   // Last
-  const LastUpdateCheck = Settings.Get<double>('status', 'last-update-check', 0);
+  const LastUpdateCheck = Status.Get<double>('last-update-check', 0);
   if (LastUpdateCheck <> 0) and (DaysBetween(Now, LastUpdateCheck) < 1) then
     Exit;
 
@@ -450,7 +672,7 @@ begin
     Exit;
 
   // Write last update check
-  Settings.Put<double>('status', 'last-update-check', Now);
+  Status.Put<double>('last-update-check', Now);
 
   // Update
   DoUpdateCheck(false);
@@ -506,6 +728,15 @@ begin
     BringToTopAndFocusWindow(Handle);
 end;
 
+procedure TMainForm.WaitBrowserInitialization;
+begin
+  var I: integer; I := 0;
+  while not BrowserInitialized and (I < 5000) do begin
+      Sleep(1);
+      Application.ProcessMessages;
+  end;
+end;
+
 procedure TMainForm.WaitBrowserNavigation;
 begin
   var I: integer; I := 0;
@@ -524,17 +755,9 @@ procedure TMainForm.WMSysCommand(var Message: TWMSysCommand);
 begin
   // Handle menus
   case Message.CmdType of
-    MENU_ACTION_RELOAD: InitializeSite;
+    MENU_ACTION_RELOAD: ReloadWebViewBase;
     MENU_ACTION_TRAY: MinimizeToTray;
-    MENU_ACTION_SETTINGS: begin
-      with TSettingsForm.Create(Self) do
-        try
-          // Show
-          ShowModal;
-        finally
-          Free;
-        end;
-    end;
+    MENU_ACTION_SETTINGS: OpenSettingsForm;
   end;
 
   // Done
@@ -551,11 +774,6 @@ end;
 
 { TMainBrowser }
 
-procedure TMainBrowser.ClearHistory;
-begin
-
-end;
-
 constructor TMainBrowser.Create(AOwner: TComponent);
 begin
   inherited;
@@ -570,12 +788,17 @@ var
   View3: ICoreWebView2_13;
   Profile: ICoreWebView2Profile;
 begin
-    // Set dark mode
+  // Set dark mode
   if Assigned(DefaultInterface) then
     if Succeeded(DefaultInterface.QueryInterface(ICoreWebView2_13, View3)) then
       if Succeeded(View3.Get_Profile(Profile)) and Assigned(Profile) then
         if not Succeeded(Profile.Set_PreferredColorScheme( COREWEBVIEW2_PREFERRED_COLOR_SCHEME_DARK )) then
           OutputDebugString('Failed to set profile.');
+end;
+
+procedure TMainBrowser.OpenDevTools;
+begin
+  DefaultInterface.OpenDevToolsWindow;
 end;
 
 end.

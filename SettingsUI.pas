@@ -4,7 +4,7 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls, UITypes,
   Cod.SysUtils, Cod.Files, Cod.Windows, IOUtils;
 
 type
@@ -34,6 +34,12 @@ type
     Label14: TLabel;
     CheckBox5: TCheckBox;
     Button4: TButton;
+    Label15: TLabel;
+    ListBox1: TListBox;
+    Panel3: TPanel;
+    Label16: TLabel;
+    Button5: TButton;
+    Button6: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
@@ -43,6 +49,8 @@ type
     procedure CheckBox4Click(Sender: TObject);
     procedure CheckBox5Click(Sender: TObject);
     procedure Button4Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+    procedure Button6Click(Sender: TObject);
   private
     { Private declarations }
     procedure UpdateStartupFile;
@@ -80,6 +88,33 @@ begin
   finally
     TButton(Sender).Enabled := true;
   end;
+end;
+
+procedure TSettingsForm.Button5Click(Sender: TObject);
+begin
+  if MessageDLG('Are you sure you want to remove all of the installed extensions of the web view? They will be re-installed from the Extensions folder in the apps directory', mtWarning, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  // Close browser
+  MainForm.Browser.DeleteAllExtensions;
+end;
+
+procedure TSettingsForm.Button6Click(Sender: TObject);
+begin
+  if MessageDLG('Are you sure you want to delete all your settings, preferences and reset the web view to default? This action once executed cannot be undone', mtWarning, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  // Close browser
+  MainForm.Browser.CloseBrowserProcess;
+  MainForm.Browser.Free;
+
+  // Delete
+  TDirectory.Delete(AppData, true);
+
+  // Info
+  MessageDLG('The application will now close to finalize the deletion process.', mtInformation, [mbOk], 0);
+
+  Halt;
 end;
 
 procedure TSettingsForm.CheckBox1Click(Sender: TObject);

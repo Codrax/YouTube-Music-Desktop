@@ -3,8 +3,8 @@ object SettingsForm: TSettingsForm
   Top = 0
   BorderStyle = bsDialog
   Caption = 'Settings'
-  ClientHeight = 461
-  ClientWidth = 624
+  ClientHeight = 511
+  ClientWidth = 944
   Color = clBlack
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWhite
@@ -81,7 +81,7 @@ object SettingsForm: TSettingsForm
     Layout = tlCenter
   end
   object Label7: TLabel
-    Left = 352
+    Left = 664
     Top = 96
     Width = 38
     Height = 17
@@ -94,7 +94,7 @@ object SettingsForm: TSettingsForm
     ParentFont = False
   end
   object Label8: TLabel
-    Left = 352
+    Left = 664
     Top = 119
     Width = 193
     Height = 25
@@ -107,7 +107,7 @@ object SettingsForm: TSettingsForm
     ParentFont = False
   end
   object Label9: TLabel
-    Left = 352
+    Left = 664
     Top = 148
     Width = 168
     Height = 20
@@ -120,7 +120,7 @@ object SettingsForm: TSettingsForm
     ParentFont = False
   end
   object Label10: TLabel
-    Left = 352
+    Left = 664
     Top = 326
     Width = 249
     Height = 35
@@ -140,7 +140,7 @@ object SettingsForm: TSettingsForm
     Layout = tlCenter
   end
   object Label12: TLabel
-    Left = 496
+    Left = 808
     Top = 167
     Width = 49
     Height = 13
@@ -155,7 +155,7 @@ object SettingsForm: TSettingsForm
   end
   object Label13: TLabel
     Left = 24
-    Top = 294
+    Top = 302
     Width = 68
     Height = 17
     Caption = 'Application'
@@ -168,17 +168,43 @@ object SettingsForm: TSettingsForm
   end
   object Label14: TLabel
     Left = 48
-    Top = 316
+    Top = 324
     Width = 250
     Height = 19
     AutoSize = False
     Caption = 'Check for updates once every day'
     Layout = tlCenter
   end
+  object Label15: TLabel
+    Left = 352
+    Top = 96
+    Width = 118
+    Height = 17
+    Caption = 'Browser extensions'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWhite
+    Font.Height = -13
+    Font.Name = 'Segoe UI Semibold'
+    Font.Style = []
+    ParentFont = False
+  end
+  object Label16: TLabel
+    Left = 352
+    Top = 263
+    Width = 99
+    Height = 17
+    Caption = 'Troubleshooting'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWhite
+    Font.Height = -13
+    Font.Name = 'Segoe UI Semibold'
+    Font.Style = []
+    ParentFont = False
+  end
   object Panel1: TPanel
     Left = 0
-    Top = 401
-    Width = 624
+    Top = 451
+    Width = 944
     Height = 60
     Align = alBottom
     BevelOuter = bvNone
@@ -187,7 +213,7 @@ object SettingsForm: TSettingsForm
     TabOrder = 0
     object Button1: TButton
       AlignWithMargins = True
-      Left = 471
+      Left = 791
       Top = 8
       Width = 133
       Height = 44
@@ -253,36 +279,36 @@ object SettingsForm: TSettingsForm
     OnClick = CheckBox3Click
   end
   object Button2: TButton
-    Left = 352
+    Left = 664
     Top = 186
     Width = 249
     Height = 56
     Caption = 'Official site'
     CommandLinkHint = 'Visit the official site'
     Style = bsCommandLink
-    TabOrder = 4
+    TabOrder = 10
     OnClick = Button2Click
   end
   object Button3: TButton
-    Left = 352
+    Left = 664
     Top = 255
     Width = 249
     Height = 56
     Caption = 'Give feedback'
     CommandLinkHint = 'Leave feeedback on the repository'
     Style = bsCommandLink
-    TabOrder = 5
+    TabOrder = 11
     OnClick = Button3Click
   end
   object Panel2: TPanel
-    Left = 291
+    Left = 320
     Top = 80
-    Width = 1
-    Height = 299
+    Width = 2
+    Height = 350
     BevelOuter = bvNone
     Color = 1381653
     ParentBackground = False
-    TabOrder = 6
+    TabOrder = 12
   end
   object CheckBox4: TCheckBox
     Left = 24
@@ -297,13 +323,13 @@ object SettingsForm: TSettingsForm
     Font.Style = []
     ParentFont = False
     State = cbChecked
-    TabOrder = 7
+    TabOrder = 4
     StyleElements = []
     OnClick = CheckBox4Click
   end
   object CheckBox5: TCheckBox
     Left = 24
-    Top = 317
+    Top = 325
     Width = 275
     Height = 18
     Checked = True
@@ -314,18 +340,80 @@ object SettingsForm: TSettingsForm
     Font.Style = []
     ParentFont = False
     State = cbChecked
-    TabOrder = 8
+    TabOrder = 5
     StyleElements = []
     OnClick = CheckBox5Click
   end
   object Button4: TButton
     Left = 24
-    Top = 339
+    Top = 355
     Width = 275
     Height = 40
     Caption = 'Check for updates now'
     Style = bsCommandLink
-    TabOrder = 9
+    TabOrder = 6
     OnClick = Button4Click
+  end
+  object ListBox1: TListBox
+    Left = 352
+    Top = 127
+    Width = 273
+    Height = 130
+    TabStop = False
+    BevelInner = bvNone
+    BevelOuter = bvNone
+    BorderStyle = bsNone
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWhite
+    Font.Height = -16
+    Font.Name = 'Segoe UI'
+    Font.Style = []
+    ItemHeight = 21
+    Items.Strings = (
+      'uBlock Origin'
+      'Adblocker'
+      ''
+      'ThemeSong for YouTube Music'#8482
+      'Improved Visuals'
+      'By Kris T')
+    ParentColor = True
+    ParentFont = False
+    TabOrder = 7
+  end
+  object Panel3: TPanel
+    Left = 640
+    Top = 80
+    Width = 2
+    Height = 350
+    BevelOuter = bvNone
+    Color = 1381653
+    ParentBackground = False
+    TabOrder = 13
+  end
+  object Button5: TButton
+    Left = 352
+    Top = 286
+    Width = 249
+    Height = 69
+    Caption = 'Remove all extensions'
+    CommandLinkHint = 'Uninstall all extensions added to the web view'
+    Style = bsCommandLink
+    TabOrder = 8
+    WordWrap = True
+    OnClick = Button5Click
+  end
+  object Button6: TButton
+    Left = 352
+    Top = 361
+    Width = 249
+    Height = 84
+    Caption = 'Reset settings to default'
+    CommandLinkHint = 
+      'Reset the application'#39's settings to default and delete all data.' +
+      ' This will log you out and clear any preferences'
+    Style = bsCommandLink
+    TabOrder = 9
+    WordWrap = True
+    OnClick = Button6Click
   end
 end

@@ -135,6 +135,8 @@
         <DCCReference Include="SettingsUI.pas">
             <Form>SettingsForm</Form>
         </DCCReference>
+        <DCCReference Include="Edge2.pas"/>
+        <DCCReference Include="WebView2Extended.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
