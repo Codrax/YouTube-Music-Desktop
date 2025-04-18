@@ -9,6 +9,9 @@
 - Minimize app to system tray
 - Launch at startup (Minimized by default)
 - Settings window
+- Browser Extensions
+- Ad Blocking (uBlock Origin)
+- Custom player themes (ThemeSong for YouTube Music™ (Enhancer)
 
 
 To access most settings and UIs specific to the app, right-click on the application's titlebar
