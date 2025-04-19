@@ -684,7 +684,7 @@ var
 begin
   // Start update check
   try
-    Server.APILoad('youtube-music-desktop');
+    Server.APILoad('youtube-music-desktop', VERSION);
 
     if not Server.NewerThan(VERSION) then begin
       if NotifyStatus then
