@@ -520,7 +520,7 @@ begin
   end;
 
   // Get settings
-  Browser.ZoomFactor := Settings.Get<double>('accessibility', 'zoom', 1);
+  Browser.ZoomFactor := Settings.Get<double>('zoom', 'accessibility', 1);
 
   // Get installed
   var Installed := ReadKnownExtensions;

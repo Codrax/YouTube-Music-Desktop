@@ -175,7 +175,7 @@ begin
   CheckBox3.Checked := Settings.Get<boolean>('minimize-to-tray', 'general', true);
   CheckBox4.Checked := Settings.Get<boolean>('general', 'continue-playback', true);
   CheckBox5.Checked := Settings.Get<boolean>('app', 'check-updates', true);
-  TrackBar1.Position := round(Settings.Get<double>('accessibility', 'zoom', 1)*100);
+  TrackBar1.Position := round(Settings.Get<double>('zoom', 'accessibility', 1)*100);
 end;
 
 procedure TSettingsForm.TrackBar1Change(Sender: TObject);
@@ -185,7 +185,7 @@ begin
   // Save
   if TTrackBar(Sender).Focused then begin
     const NewZoom = TTrackBar(Sender).Position / 100;
-    Settings.Put<double>('accessibility', 'zoom', NewZoom);
+    Settings.Put<double>('zoom', 'accessibility', NewZoom);
 
     MainForm.Browser.ZoomFactor := NewZoom;
   end;
