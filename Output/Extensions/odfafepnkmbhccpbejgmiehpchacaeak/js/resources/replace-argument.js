@@ -68,7 +68,7 @@ export function trustedReplaceArgument(
     const replacer = argraw.startsWith('repl:/') &&
         parseReplaceFn(argraw.slice(5)) || undefined;
     const value = replacer === undefined &&
-        validateConstantFn(true, argraw, extraArgs) || undefined;
+        validateConstantFn(true, argraw, extraArgs);
     const reCondition = extraArgs.condition
         ? safe.patternToRegex(extraArgs.condition)
         : /^/;
@@ -95,8 +95,10 @@ export function trustedReplaceArgument(
             return context.reflect();
         }
         const argBefore = getArg(context);
-        if ( safe.RegExp_test.call(reCondition, argBefore) === false ) {
-            return context.reflect();
+        if ( extraArgs.condition !== undefined ) {
+            if ( safe.RegExp_test.call(reCondition, argBefore) === false ) {
+                return context.reflect();
+            }
         }
         const argAfter = replacer && typeof argBefore === 'string'
             ? argBefore.replace(replacer.re, replacer.replacement)

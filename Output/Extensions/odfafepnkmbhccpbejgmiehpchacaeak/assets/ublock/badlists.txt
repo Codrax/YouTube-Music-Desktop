@@ -3,6 +3,7 @@
 # Reek's Anti-Adblock Killer
 https://raw.github.com/reek/anti-adblock-killer/master/anti-adblock-killer-filters.txt
 https://raw.githubusercontent.com/reek/anti-adblock-killer/master/anti-adblock-killer-filters.txt
+https://rawcdn.githack.com/reek/anti-adblock-killer/master/anti-adblock-killer-filters.txt
 
 # ABP anti-circumvention filter lists
 https://easylist-downloads.adblockplus.org/abp-filters-anti-cv.txt
@@ -75,6 +76,8 @@ https://raw.githubusercontent.com/bogachenko/fuckfuckadblock/master/fuckfuckadbl
 https://raw.githubusercontent.com/bogachenko/fuckfuckadblock/master/fuckfuckadblock.txt?_=raw
 # https://github.com/uBlockOrigin/uAssets/issues/26120
 https://raw.githubusercontent.com/bogachenko/fuckfuckadblock/master/fuckfuckadblock.txt?_=rawlist
+# https://github.com/uBlockOrigin/uAssets/issues/27183
+https://raw.githubusercontent.com/bogachenko/fuckfuckadblock/master/fuckfuckadblock.txt?_=fuckfuckadblock
 
 # interfere normal operation; generic exceptions to ad servers and analytics
 https://raw.githubusercontent.com/Apious/whoru/main/Source1.txt

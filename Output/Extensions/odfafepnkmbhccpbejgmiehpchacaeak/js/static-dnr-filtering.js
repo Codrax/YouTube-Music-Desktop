@@ -31,20 +31,7 @@ import staticNetFilteringEngine from './static-net-filtering.js';
 
 /******************************************************************************/
 
-// http://www.cse.yorku.ca/~oz/hash.html#djb2
-//   Must mirror content script surveyor's version
-
-const hashFromStr = (type, s) => {
-    const len = s.length;
-    const step = len + 7 >>> 3;
-    let hash = (type << 5) + type ^ len;
-    for ( let i = 0; i < len; i += step ) {
-        hash = (hash << 5) + hash ^ s.charCodeAt(i);
-    }
-    return hash & 0xFFFFFF;
-};
-
-const isRegex = hn => hn.startsWith('/') && hn.endsWith('/');
+const isRegexOrPath = hn => hn.includes('/');
 
 /******************************************************************************/
 
@@ -93,32 +80,19 @@ const keyFromSelector = selector => {
 function addGenericCosmeticFilter(context, selector, isException) {
     if ( selector === undefined ) { return; }
     if ( selector.length <= 1 ) { return; }
-    if ( isException ) {
-        if ( context.genericCosmeticExceptions === undefined ) {
-            context.genericCosmeticExceptions = new Set();
-        }
-        context.genericCosmeticExceptions.add(selector);
-        return;
-    }
     if ( selector.charCodeAt(0) === 0x7B /* '{' */ ) { return; }
     const key = keyFromSelector(selector);
-    if ( key === undefined ) {
-        if ( context.genericHighCosmeticFilters === undefined ) {
-            context.genericHighCosmeticFilters = new Set();
+    if ( isException ) {
+        if ( context.genericCosmeticExceptions === undefined ) {
+            context.genericCosmeticExceptions = [];
         }
-        context.genericHighCosmeticFilters.add(selector);
+        context.genericCosmeticExceptions.push({ key, selector });
         return;
     }
-    const type = key.charCodeAt(0);
-    const hash = hashFromStr(type, key.slice(1));
     if ( context.genericCosmeticFilters === undefined ) {
-        context.genericCosmeticFilters = new Map();
+        context.genericCosmeticFilters = [];
     }
-    let bucket = context.genericCosmeticFilters.get(hash);
-    if ( bucket === undefined ) {
-        context.genericCosmeticFilters.set(hash, bucket = []);
-    }
-    bucket.push(selector);
+    context.genericCosmeticFilters.push({ key, selector });
 }
 
 /******************************************************************************/
@@ -138,7 +112,7 @@ function addExtendedToDNR(context, parser) {
         for ( const { hn, not, bad } of parser.getExtFilterDomainIterator() ) {
             if ( bad ) { continue; }
             if ( exception ) { continue; }
-            if ( isRegex(hn) ) { continue; }
+            if ( isRegexOrPath(hn) ) { continue; }
             let details = context.scriptletFilters.get(argsToken);
             if ( details === undefined ) {
                 context.scriptletFilters.set(argsToken, details = { args });
@@ -196,7 +170,7 @@ function addExtendedToDNR(context, parser) {
         };
         for ( const { hn, not, bad } of parser.getExtFilterDomainIterator() ) {
             if ( bad ) { continue; }
-            if ( isRegex(hn) ) { continue; }
+            if ( isRegexOrPath(hn) ) { continue; }
             if ( not ) {
                 if ( rule.condition.excludedInitiatorDomains === undefined ) {
                     rule.condition.excludedInitiatorDomains = [];
@@ -248,14 +222,20 @@ function addExtendedToDNR(context, parser) {
         return;
     }
     let details = context.specificCosmeticFilters.get(compiled);
+    let isGeneric = true;
     for ( const { hn, not, bad } of parser.getExtFilterDomainIterator() ) {
         if ( bad ) { continue; }
         if ( not && exception ) { continue; }
-        if ( isRegex(hn) ) { continue; }
+        isGeneric = false;
+        // TODO: Support regex- and path-based entries
+        if ( isRegexOrPath(hn) ) { continue; }
         if ( details === undefined ) {
             context.specificCosmeticFilters.set(compiled, details = {});
         }
-        if ( exception ) {
+        if ( compiled.startsWith('{') === false ) {
+            details.key = keyFromSelector(compiled);
+        }
+        if ( exception || not ) {
             if ( details.excludeMatches === undefined ) {
                 details.excludeMatches = [];
             }
@@ -275,9 +255,8 @@ function addExtendedToDNR(context, parser) {
     if ( details === undefined ) { return; }
     if ( exception ) { return; }
     if ( compiled.startsWith('{') ) { return; }
-    if ( details.matches === undefined || details.matches.includes('*') ) {
+    if ( isGeneric ) {
         addGenericCosmeticFilter(context, compiled, false);
-        details.matches = undefined;
     }
 }
 
@@ -459,6 +438,20 @@ function finalizeRuleset(context, network) {
     mergeRules(rulesetMap, 'requestDomains');
     mergeRules(rulesetMap, 'responseHeaders');
 
+    // Convert back single-entry requestDomains into pattern-based filters
+    // https://github.com/uBlockOrigin/uBOL-home/issues/327
+    // TODO: Remove when (if) Safari is changed to interpret requestDomains as
+    //       in other browsers.
+    for ( const rule of rulesetMap.values() ) {
+        const { condition } = rule;
+        if ( condition?.requestDomains === undefined ) { continue; }
+        if ( condition.requestDomains.length !== 1 ) { continue; }
+        if ( condition.urlFilter !== undefined ) { continue; }
+        if ( condition.regexFilter !== undefined ) { continue; }
+        condition.urlFilter = `||${condition.requestDomains[0]}^`;
+        condition.requestDomains = undefined;
+    }
+
     // Patch id
     const rulesetFinal = [];
     {
@@ -483,6 +476,7 @@ function finalizeRuleset(context, network) {
 
 async function dnrRulesetFromRawLists(lists, options = {}) {
     const context = Object.assign({}, options);
+    context.bad = options.networkBad;
     staticNetFilteringEngine.dnrFromCompiled('begin', context);
     context.extensionPaths = new Map(context.extensionPaths || []);
     const toLoad = [];
@@ -497,8 +491,8 @@ async function dnrRulesetFromRawLists(lists, options = {}) {
     await Promise.all(toLoad);
     const result = {
         network: staticNetFilteringEngine.dnrFromCompiled('end', context),
-        genericCosmetic: context.genericCosmeticFilters,
-        genericHighCosmetic: context.genericHighCosmeticFilters,
+        networkBad: context.bad,
+        genericCosmeticFilters: context.genericCosmeticFilters,
         genericCosmeticExceptions: context.genericCosmeticExceptions,
         specificCosmetic: context.specificCosmeticFilters,
         scriptlet: context.scriptletFilters,

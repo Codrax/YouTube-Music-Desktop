@@ -8,7 +8,9 @@ uses
   Vcl.ExtCtrls, Vcl.Menus, Vcl.StdCtrls, Vcl.Imaging.pngimage, Cod.Types,
   {Vcl.Edge, } Edge2, Cod.SysUtils, Cod.Files, Cod.Windows, Cod.Internet,
   Cod.IniSettings, Winapi.ShlObj, DateUtils, Cod.Version, Cod.StringUtils,
-  SettingsUI, UITypes, IOUtils;
+  SettingsUI, UITypes, IOUtils, System.SyncObjs, System.TimeSpan, JSON, Winapi.EdgeUtils,
+  System.Win.TaskbarCore, Vcl.Taskbar, System.Actions, Vcl.ActnList,
+  System.ImageList, Vcl.ImgList, System.Generics.Collections;
 
 const IID_ICoreWebView2EnvironmentOptions6: TGUID = '{57D29CC3-C84F-42A0-B0E2-EFFBD5E179DE}';
 
@@ -24,9 +26,15 @@ type
   // Define custom class
   TMainBrowser = class(TCustomEdgeBrowser)
   private
+    type TScriptCallback = reference to procedure (Status: HResult; ResultObjectJSON: string);
+
     procedure HandleCreateWebViewCompleted(Sender: TCustomEdgeBrowser; AResult: HResult);
   protected
     procedure OpenDevTools;
+
+    // Scripts
+    procedure ExecuteScript(const JavaScript: string; Callback: TScriptCallback); overload;
+    function ExecuteScriptAwait(const JavaScript: string; out Output: string; Timeout: cardinal=1000): boolean; overload;
 
   public
     constructor Create(AOwner: TComponent); override;
@@ -47,7 +55,6 @@ type
     StartupLogo: TImage;
     DelayedUpdateCheck: TTimer;
     ErrorPane: TPanel;
-    Image1: TImage;
     Label1: TLabel;
     Label2: TLabel;
     Button1: TButton;
@@ -87,6 +94,15 @@ type
     StartURLLoader: TTimer;
     Settings1: TMenuItem;
     N4: TMenuItem;
+    Taskbar1: TTaskbar;
+    ActionList1: TActionList;
+    ActionPlayPause: TAction;
+    ActionPrev: TAction;
+    ActionNext: TAction;
+    TaskbarPeriodicUpdater: TTimer;
+    Image1: TImage;
+    ic_play: TImage;
+    ic_pause: TImage;
     procedure FormCreate(Sender: TObject);
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure TrayIconDblClick(Sender: TObject);
@@ -113,6 +129,10 @@ type
     procedure StartURLLoaderTimer(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Settings1Click(Sender: TObject);
+    procedure ActionPlayPauseExecute(Sender: TObject);
+    procedure ActionPrevExecute(Sender: TObject);
+    procedure ActionNextExecute(Sender: TObject);
+    procedure TaskbarPeriodicUpdaterTimer(Sender: TObject);
   protected
     procedure WMSysCommand(var Message: TWMSysCommand); message WM_SYSCOMMAND;
     procedure WMRestoreAppFromTray(var Message: TMessage); message WM_RESTOREAPPFROMTRAY;
@@ -120,9 +140,16 @@ type
   private
     procedure CloseProgram;
 
+    // Extensions
+    function ReadKnownExtensions: TArray<string>;
+    procedure WriteKnownExtensions(AList: TArray<string>);
+
     // Tray
     procedure MinimizeToTray;
     procedure RestoreFromTray;
+
+    // Taskbar
+    procedure UpdateTaskbarButtons;
 
     // Window
     procedure CreateSystemMenu;
@@ -133,6 +160,12 @@ type
     // Utils
     procedure ReloadWebViewBase;
 
+    // Media
+    function IsPlaying: boolean;
+    procedure DoPlayPause;
+    procedure DoPrev;
+    procedure DoNext;
+
     // Browser
     procedure InitializeSite(FirstLoad: boolean=false);
     procedure WaitBrowserNavigation;
@@ -142,6 +175,7 @@ type
     procedure NavigateHome;
 
     // Events
+    procedure BrowserExecuteScript(Sender: TCustomEdgeBrowser; AResult: HResult; const AResultObjectAsJson: string);
     procedure BrowserNavigationStarting(Sender: TCustomEdgeBrowser; Args: TNavigationStartingEventArgs);
     procedure BrowserNavigationCompleted(Sender: TCustomEdgeBrowser;
       IsSuccess: Boolean; WebErrorStatus: COREWEBVIEW2_WEB_ERROR_STATUS);
@@ -153,12 +187,16 @@ type
     { Public declarations }
     InTray: boolean;
 
+    // Extensions
+    procedure ResetExtensions;
+
     // Update
     procedure DoUpdateCheck(NotifyStatus: boolean);
   end;
 
 const
-  VERSION: TVersion = (Major: 1; Minor: 1; Maintenance: 0);
+  VERSION: TVersion = (Major: 1; Minor: 2; Maintenance: 0);
+  EXTENSIONS_VERSION: TVersion = (Major: 1; Minor: 1; Maintenance: 1); // change to re-install all extensions
 
   APP_NAME = 'YouTube Music Desktop';
 
@@ -198,6 +236,8 @@ var
   DebugMode: boolean;
   AppInitialized: boolean;
 
+  TaskbarPlayingState: boolean = false;
+
   // Browser
   BrowserInitialized: boolean;
   BrowserNavigating: boolean;
@@ -213,6 +253,27 @@ var
 implementation
 
 {$R *.dfm}
+
+procedure TMainForm.ActionNextExecute(Sender: TObject);
+begin
+  DoNext;
+end;
+
+procedure TMainForm.ActionPlayPauseExecute(Sender: TObject);
+begin
+  DoPlayPause;
+end;
+
+procedure TMainForm.ActionPrevExecute(Sender: TObject);
+begin
+  DoPrev;
+end;
+
+procedure TMainForm.BrowserExecuteScript(Sender: TCustomEdgeBrowser;
+  AResult: HResult; const AResultObjectAsJson: string);
+begin
+  //
+end;
 
 procedure TMainForm.BrowserNavigationCompleted(Sender: TCustomEdgeBrowser;
   IsSuccess: Boolean; WebErrorStatus: COREWEBVIEW2_WEB_ERROR_STATUS);
@@ -289,7 +350,7 @@ end;
 
 procedure TMainForm.Button12Click(Sender: TObject);
 begin
-  Browser.RemoveExtension( Edit2.Text );
+  Browser.RemoveExtensionByName( Edit2.Text );
 end;
 
 procedure TMainForm.Button1Click(Sender: TObject);
@@ -394,6 +455,23 @@ begin
   WaitBrowserNavigation;
 end;
 
+function TMainForm.IsPlaying: boolean;
+var
+  S: string;
+begin
+  Browser.ExecuteScriptAwait('navigator.mediaSession.playbackState', S, 100);
+
+  try
+    S := S.TrimLeft(['"']).TrimRight(['"']);
+    if (S = '') then
+      Exit(false);
+
+    Result := S = 'playing';
+  except
+    Exit(false);
+  end;
+end;
+
 procedure TMainForm.CreateSystemMenu;
 var
   HhMenu: HMENU;
@@ -419,9 +497,6 @@ end;
 
 procedure TMainForm.CreatingWebViewFinalized(Sender: TCustomEdgeBrowser;
   AResult: HResult);
-var
-  Extensions: TArray<string>;
-  Dir: string;
 begin
   // Initialized
   BrowserInitialized := true;
@@ -434,10 +509,50 @@ begin
   end else
     Browser.OpenDevTools;
 
-  // Install all extensions
-  Extensions := TDirectory.GetDirectories(AppDir + DIR_EXT);
-  for Dir in Extensions do
-    Browser.AddExtension(Dir);
+  // Reset extensions
+  if Settings.Get<string>('extension version', 'version', '') <> EXTENSIONS_VERSION.ToString then begin
+    ResetExtensions;
+    Settings.Put<string>('extension version', 'version', EXTENSIONS_VERSION.ToString);
+  end;
+
+  // Get installed
+  var Installed := ReadKnownExtensions;
+  var ExtensionsChanged := false;
+
+  // Get expected
+  var ExtensionsFolders: TArray<string>;
+  if TDirectory.Exists(AppDir + DIR_EXT) then
+    ExtensionsFolders := TDirectory.GetDirectories(AppDir + DIR_EXT);
+  var Expected: TArray<string>; Expected:=[];
+    for var S in ExtensionsFolders do Expected := Expected + [ExtractFileName(S)];
+
+  // Install all NEW extensions
+  for var Dir in ExtensionsFolders do begin
+    const ExtID = ExtractFileName(Dir);
+    if not TArray.Contains<string>(Installed, ExtID) then begin
+      Browser.AddExtension(Dir);
+
+      Installed := Installed + [ExtID];
+      ExtensionsChanged := true;
+    end;
+  end;
+
+  // Remove all DELETED extensions
+  var KeptExts: TArray<string>;
+  for var ExtID in Installed do
+    if not TArray.Contains<string>(Expected, ExtID) then begin
+      Browser.RemoveExtensionById(ExtID);
+    end else
+      KeptExts := KeptExts + [ExtID];
+  if Length(KeptExts) <> Length(Installed) then begin
+    Installed := KeptExts;
+
+    ExtensionsChanged := true;
+  end;
+
+  // Save list
+  if ExtensionsChanged then
+    WriteKnownExtensions(Installed);
 end;
 
 procedure TMainForm.Exit1Click(Sender: TObject);
@@ -517,6 +632,7 @@ begin
 
   Browser.AreBrowserExtensionsEnabled := true;
 
+  Browser.OnExecuteScript := BrowserExecuteScript;
   Browser.OnNavigationStarting := BrowserNavigationStarting;
   Browser.OnNavigationCompleted := BrowserNavigationCompleted;
   Browser.OnCreateWebViewCompleted := CreatingWebViewFinalized;
@@ -603,6 +719,21 @@ begin
     end;
 end;
 
+function TMainForm.ReadKnownExtensions: TArray<string>;
+begin
+  Result := [];
+  if TFile.Exists(AppData+'known-extensions.ini') then
+    with TStringList.Create do
+      try
+        LoadFromFile(AppData+'known-extensions.ini');
+
+        for var I := 0 to Count-1 do
+          Result := Result + [Strings[I]];
+      finally
+        Free;
+      end;
+end;
+
 procedure TMainForm.ReloadWebViewBase;
 begin
   InitializeSite;
@@ -610,6 +741,12 @@ begin
   //
   StartURL := HOME_URL;
   StartURLLoader.Enabled := true;
+end;
+
+procedure TMainForm.ResetExtensions;
+begin
+  Browser.DeleteAllExtensions;
+  WriteKnownExtensions( [] );
 end;
 
 procedure TMainForm.RestoreFromTray;
@@ -678,6 +815,24 @@ begin
   DoUpdateCheck(false);
 end;
 
+procedure TMainForm.DoNext;
+begin
+  Browser.ExecuteScript('document.querySelector(''yt-icon-button[title="Next"]'').click();');
+end;
+
+procedure TMainForm.DoPlayPause;
+begin
+  Browser.ExecuteScript('document.getElementById(''play-pause-button'').click()');
+
+  // Taskbar update sooner
+  TaskbarPeriodicUpdater.Interval := 100;
+end;
+
+procedure TMainForm.DoPrev;
+begin
+  Browser.ExecuteScript('document.querySelector(''yt-icon-button[title="Previous"]'').click();');
+end;
+
 procedure TMainForm.DoUpdateCheck(NotifyStatus: boolean);
 var
   Server: TVersion;
@@ -720,12 +875,50 @@ begin
   end;
 end;
 
+procedure TMainForm.TaskbarPeriodicUpdaterTimer(Sender: TObject);
+begin
+  if not Visible then Exit;
+
+  // Reset interval
+  TTimer(sender).Interval := 2000;
+
+  // Update
+  UpdateTaskbarButtons;
+end;
+
 procedure TMainForm.TrayIconDblClick(Sender: TObject);
 begin
   if InTray then
     RestoreFromTray
   else
     BringToTopAndFocusWindow(Handle);
+end;
+
+procedure TMainForm.UpdateTaskbarButtons;
+var
+  Playing: boolean;
+begin
+  try
+    Playing := IsPlaying;
+    if Playing = TaskbarPlayingState then
+      Exit;
+
+    // Set new icons
+    const I = TIcon.Create;
+    try
+      if Playing then
+        Taskbar1.TaskBarButtons[1].Icon.Assign( ic_pause.Picture.Icon )
+      else
+        Taskbar1.TaskBarButtons[1].Icon.Assign( ic_play.Picture.Icon );
+
+      Taskbar1.ApplyButtonsChanges;
+    finally
+      I.Free;
+    end;
+
+    TaskbarPlayingState := Playing;
+  except
+  end;
 end;
 
 procedure TMainForm.WaitBrowserInitialization;
@@ -764,6 +957,19 @@ begin
   inherited;
 end;
 
+procedure TMainForm.WriteKnownExtensions(AList: TArray<string>);
+begin
+  with TStringList.Create do
+    try
+      for var S in AList do
+        Add(S);
+
+      SaveToFile(AppData+'known-extensions.ini');
+    finally
+      Free;
+    end;
+end;
+
 procedure TMainForm.YourLibrary1Click(Sender: TObject);
 begin
   Browser.Navigate(YTMUSIC_URL_LIBRARY);
@@ -781,6 +987,52 @@ begin
 
   // Args
   AdditionalBrowserArguments := '--autoplay-policy=no-user-gesture-required';
+end;
+
+procedure TMainBrowser.ExecuteScript(const JavaScript: string;
+  Callback: TScriptCallback);
+begin
+  if DefaultInterface <> nil then
+    DefaultInterface.ExecuteScript(PChar(JavaScript),
+      Callback<HResult, PChar>.CreateAs<ICoreWebView2ExecuteScriptCompletedHandler>(
+        function(ErrorCode: HResult; ResultObjectAsJson: PWideChar): HResult stdcall
+        begin
+          Result := S_OK;
+
+          Callback(ErrorCode, string(ResultObjectAsJson));
+        end));
+end;
+
+function TMainBrowser.ExecuteScriptAwait(const JavaScript: string; out Output: string; Timeout: cardinal=1000): boolean;
+var
+  FWaiting: boolean;
+  FResult: string;
+begin
+  const StartTime = Now;
+  FWaiting := true;
+  if DefaultInterface <> nil then
+    DefaultInterface.ExecuteScript(PChar(JavaScript),
+      Callback<HResult, PChar>.CreateAs<ICoreWebView2ExecuteScriptCompletedHandler>(
+        function(ErrorCode: HResult; ResultObjectAsJson: PWideChar): HResult stdcall
+        begin
+          Result := S_OK;
+
+          FResult := string(ResultObjectAsJson);
+          FWaiting := false;
+        end));
+
+  // Wait
+  while FWaiting do begin
+    Sleep(10);
+    Application.ProcessMessages;
+
+    if MilliSecondsBetween(StartTime, Now) >= Timeout then
+      Exit(false);
+  end;
+
+  // Done
+  Output := FResult;
+  Result := true;
 end;
 
 procedure TMainBrowser.HandleCreateWebViewCompleted(Sender: TCustomEdgeBrowser; AResult: HResult);

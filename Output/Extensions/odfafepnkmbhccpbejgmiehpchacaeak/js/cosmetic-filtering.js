@@ -23,6 +23,7 @@
 
 import { MRUCache } from './mrucache.js';
 import { StaticExtFilteringHostnameDB } from './static-ext-filtering-db.js';
+import { entityFromHostname } from './uri-utils.js';
 import logger from './logger.js';
 import µb from './background.js';
 
@@ -234,7 +235,7 @@ const CosmeticFilteringEngine = function() {
     });
 
     // specific filters
-    this.specificFilters = new StaticExtFilteringHostnameDB(2);
+    this.specificFilters = new StaticExtFilteringHostnameDB();
 
     // low generic cosmetic filters: map of hash => stringified selector list
     this.lowlyGeneric = new Map();
@@ -253,16 +254,6 @@ const CosmeticFilteringEngine = function() {
         str: '',
         mru: new MRUCache(16)
     };
-
-    // Short-lived: content is valid only during one function call. These
-    // is to prevent repeated allocation/deallocation overheads -- the
-    // constructors/destructors of javascript Set/Map is assumed to be costlier
-    // than just calling clear() on these.
-    this.$specificSet = new Set();
-    this.$exceptionSet = new Set();
-    this.$proceduralSet = new Set();
-    this.$dummySet = new Set();
-
     this.reset();
 };
 
@@ -428,7 +419,7 @@ CosmeticFilteringEngine.prototype.compileGenericUnhideSelector = function(
     //   hostnames). No distinction is made between declarative and
     //   procedural selectors, since they really exist only to cancel
     //   out other cosmetic filters.
-    writer.push([ 8, '', 0b001, compiled ]);
+    writer.push([ 8, '', `-${compiled}` ]);
 };
 
 /******************************************************************************/
@@ -451,23 +442,8 @@ CosmeticFilteringEngine.prototype.compileSpecificSelector = function(
     }
 
     writer.select('COSMETIC_FILTERS:SPECIFIC');
-
-    // https://github.com/chrisaljoudi/uBlock/issues/145
-    let unhide = exception ? 1 : 0;
-    if ( not ) { unhide ^= 1; }
-
-    let kind = 0;
-    if ( unhide === 1 ) {
-        kind |= 0b001;     // Exception
-    }
-    if ( compiled.charCodeAt(0) === 0x7B /* '{' */ ) {
-        kind |= 0b010;     // Procedural
-    }
-    if ( hostname === '*' ) {
-        kind |= 0b100;     // Applies everywhere
-    }
-
-    writer.push([ 8, hostname, kind, compiled ]);
+    const prefix = ((exception ? 1 : 0) ^ (not ? 1 : 0)) ? '-' : '+';
+    writer.push([ 8, hostname, `${prefix}${compiled}` ]);
 };
 
 /******************************************************************************/
@@ -498,17 +474,21 @@ CosmeticFilteringEngine.prototype.fromCompiledContent = function(reader, options
         //   Handle specific filters meant to apply everywhere, i.e. selectors
         //   not to be injected conditionally through the DOM surveyor.
         //   hash,  *, .promoted-tweet
-        case 8:
-            if ( args[2] === 0b100 ) {
-                if ( this.reSimpleHighGeneric.test(args[3]) )
-                    this.highlyGeneric.simple.dict.add(args[3]);
-                else {
-                    this.highlyGeneric.complex.dict.add(args[3]);
+        case 8: {
+            if ( args[1] === '*' && args[2].charCodeAt(0) === 0x2D /* + */ ) {
+                const selector = args[2].slice(1);
+                if ( selector.charCodeAt(0) !== 0x7B /* { */ ) {
+                    if ( this.reSimpleHighGeneric.test(selector) ) {
+                        this.highlyGeneric.simple.dict.add(selector);
+                    } else {
+                        this.highlyGeneric.complex.dict.add(selector);
+                    }
+                    break;
                 }
-                break;
             }
-            this.specificFilters.store(args[1], args[2] & 0b011, args[3]);
+            this.specificFilters.store(args[1], args[2]);
             break;
+        }
         default:
             this.discardedCount += 1;
             break;
@@ -589,9 +569,7 @@ CosmeticFilteringEngine.prototype.toSelfie = function() {
 
 CosmeticFilteringEngine.prototype.fromSelfie = function(selfie) {
     if ( selfie.version !== this.selfieVersion ) {
-        throw new Error(
-            `cosmeticFilteringEngine: mismatched selfie version, ${selfie.version}, expected ${this.selfieVersion}`
-        );
+        throw new TypeError('Bad selfie');
     }
     this.acceptedCount = selfie.acceptedCount;
     this.discardedCount = selfie.discardedCount;
@@ -629,16 +607,11 @@ CosmeticFilteringEngine.prototype.removeFromSelectorCache = function(
     type = undefined
 ) {
     const targetHostnameLength = targetHostname.length;
-    for ( let entry of this.selectorCache ) {
-        let hostname = entry[0];
-        let item = entry[1];
+    for ( const [ hostname, item ] of this.selectorCache ) {
         if ( targetHostname !== '*' ) {
             if ( hostname.endsWith(targetHostname) === false ) { continue; }
-            if (
-                hostname.length !== targetHostnameLength &&
-                hostname.charAt(hostname.length - targetHostnameLength - 1) !== '.'
-            ) {
-                continue;
+            if ( hostname.length !== targetHostnameLength ) {
+                if ( hostname.at(-1) !== '.' ) { continue; }
             }
         }
         item.remove(type);
@@ -790,12 +763,8 @@ CosmeticFilteringEngine.prototype.retrieveSpecificSelectors = function(
         options.noSpecificCosmeticFiltering !== true ||
         options.noGenericCosmeticFiltering !== true
     ) {
-        const specificSet = this.$specificSet;
-        const proceduralSet = this.$proceduralSet;
-        const exceptionSet = this.$exceptionSet;
-        const dummySet = this.$dummySet;
-
         // Cached cosmetic filters: these are always declarative.
+        const specificSet = new Set();
         if ( cacheEntry !== undefined ) {
             cacheEntry.retrieveCosmetic(specificSet, out.genericCosmeticHashes = []);
             if ( cacheEntry.disableSurveyor ) {
@@ -803,34 +772,30 @@ CosmeticFilteringEngine.prototype.retrieveSpecificSelectors = function(
             }
         }
 
+        const allSet = new Set();
         // Retrieve filters with a non-empty hostname
-        const retrieveSets = [ specificSet, exceptionSet, proceduralSet, exceptionSet ];
-        const discardSets = [ dummySet, exceptionSet ];
-        this.specificFilters.retrieve(
-            hostname,
-            options.noSpecificCosmeticFiltering ? discardSets : retrieveSets,
-            1
-        );
-        // Retrieve filters with a regex-based hostname value
-        this.specificFilters.retrieve(
-            hostname,
-            options.noSpecificCosmeticFiltering ? discardSets : retrieveSets,
-            3
-        );
+        this.specificFilters.retrieveSpecifics(allSet, hostname);
         // Retrieve filters with a entity-based hostname value
-        if ( request.entity !== '' ) {
-            this.specificFilters.retrieve(
-                `${hostname.slice(0, -request.domain.length)}${request.entity}`,
-                options.noSpecificCosmeticFiltering ? discardSets : retrieveSets,
-                1
-            );
-        }
+        const entity = entityFromHostname(hostname, request.domain);
+        this.specificFilters.retrieveSpecifics(allSet, entity);
+        // Retrieve filters with a regex-based hostname value
+        this.specificFilters.retrieveSpecificsByRegex(allSet, hostname, request.url);
         // Retrieve filters with an empty hostname
-        this.specificFilters.retrieve(
-            hostname,
-            options.noGenericCosmeticFiltering ? discardSets : retrieveSets,
-            2
-        );
+        this.specificFilters.retrieveGenerics(allSet);
+
+        // Split filters in different groups
+        const proceduralSet = new Set();
+        const exceptionSet = new Set();
+        for ( const s of allSet ) {
+            const selector = s.slice(1);
+            if ( s.charCodeAt(0) === 0x2D /* - */ ) {
+                exceptionSet.add(selector);
+            } else if ( selector.charCodeAt(0) === 0x7B /* { */ ) {
+                proceduralSet.add(selector);
+            } else {
+                specificSet.add(selector);
+            }
+        }
 
         // Apply exceptions to specific filterset
         if ( exceptionSet.size !== 0 ) {
@@ -853,12 +818,12 @@ CosmeticFilteringEngine.prototype.retrieveSpecificSelectors = function(
         // filters, so we extract and inject them immediately.
         if ( proceduralSet.size !== 0 ) {
             for ( const json of proceduralSet ) {
-                const pfilter = JSON.parse(json);
                 if ( exceptionSet.has(json) ) {
                     proceduralSet.delete(json);
                     out.exceptedFilters.push(json);
                     continue;
                 }
+                const pfilter = JSON.parse(json);
                 if ( exceptionSet.has(pfilter.raw) ) {
                     proceduralSet.delete(json);
                     out.exceptedFilters.push(pfilter.raw);
@@ -912,12 +877,6 @@ CosmeticFilteringEngine.prototype.retrieveSpecificSelectors = function(
                 }
             }
         }
-
-        // Important: always clear used registers before leaving.
-        specificSet.clear();
-        proceduralSet.clear();
-        exceptionSet.clear();
-        dummySet.clear();
     }
 
     const details = {

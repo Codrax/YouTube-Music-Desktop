@@ -23,6 +23,7 @@ import * as sfp from './static-filtering-parser.js';
 
 import { domainFromHostname, hostnameFromNetworkURL } from './uri-utils.js';
 import { dropTask, queueTask } from './tasks.js';
+import { isRE2, tokenizableStrFromRegex } from './regex-analyzer.js';
 
 import BidiTrieContainer from './biditrie.js';
 import { CompiledListReader } from './static-filtering-io.js';
@@ -550,14 +551,6 @@ const bidiTrieMatchExtra = (l, r, ix) => {
 
 const bidiTrie = new BidiTrieContainer(bidiTrieMatchExtra);
 
-const bidiTriePrime = ( ) => {
-    bidiTrie.reset(keyvalStore.getItem('SNFE.bidiTrie'));
-};
-
-const bidiTrieOptimize = (shrink = false) => {
-    keyvalStore.setItem('SNFE.bidiTrie', bidiTrie.optimize(shrink));
-};
-
 /*******************************************************************************
 
     Each filter class will register itself in the map.
@@ -770,7 +763,7 @@ class FilterImportant {
     }
 
     static dnrFromCompiled(args, rule) {
-        rule.priority = (rule.priority || 0) + 30;
+        rule.__important = true;
     }
 
     static keyFromArgs() {
@@ -804,7 +797,7 @@ class FilterPatternPlain {
         if (
             bidiTrie.startsWith(
                 left,
-                bidiTrie.haystackLen,
+                bidiTrie.getHaystackLen(),
                 filterData[idata+1],
                 n
             ) === 0
@@ -881,7 +874,7 @@ class FilterPatternPlain1 extends FilterPatternPlain {
         if (
             bidiTrie.startsWith(
                 left,
-                bidiTrie.haystackLen,
+                bidiTrie.getHaystackLen(),
                 filterData[idata+1],
                 n
             ) === 0
@@ -904,7 +897,7 @@ class FilterPatternPlainX extends FilterPatternPlain {
         if (
             bidiTrie.startsWith(
                 left,
-                bidiTrie.haystackLen,
+                bidiTrie.getHaystackLen(),
                 filterData[idata+1],
                 n
             ) === 0
@@ -1039,7 +1032,7 @@ class FilterAnchorHnLeft {
             lastBeg = len !== 0 ? haystackCodes.indexOf(0x3A) : -1;
             if ( lastBeg !== -1 ) {
                 if (
-                    lastBeg >= bidiTrie.haystackLen ||
+                    lastBeg >= bidiTrie.getHaystackLen() ||
                     haystackCodes[lastBeg+1] !== 0x2F ||
                     haystackCodes[lastBeg+2] !== 0x2F
                 ) {
@@ -1262,7 +1255,7 @@ class FilterRegex {
         if ( rule.condition === undefined ) {
             rule.condition = {};
         }
-        if ( sfp.utils.regex.isRE2(args[1]) === false ) {
+        if ( isRE2(args[1]) === false ) {
             dnrAddRuleError(rule, `regexFilter is not RE2-compatible: ${args[1]}`);
         }
         rule.condition.regexFilter = args[1];
@@ -3112,7 +3105,7 @@ const urlTokenizer = new (class {
         this._hasQuery = 0;
         // https://www.reddit.com/r/uBlockOrigin/comments/dzw57l/
         //   Remember: 1 token needs two slots
-        this._tokens = new Uint32Array(2064);
+        this._tokens = new Uint32Array(bidiTrie.haystack.length + 16);
 
         this.knownTokens = new Uint8Array(65536);
         this.resetKnownTokens();
@@ -3142,9 +3135,9 @@ const urlTokenizer = new (class {
     }
 
     // Tokenize on demand.
-    getTokens(encodeInto) {
+    getTokens() {
         if ( this._tokenized ) { return this._tokens; }
-        let i = this._tokenize(encodeInto);
+        let i = this._tokenize();
         this._tokens[i+0] = ANY_TOKEN_HASH;
         this._tokens[i+1] = 0;
         i += 2;
@@ -3201,22 +3194,17 @@ const urlTokenizer = new (class {
     // https://github.com/chrisaljoudi/uBlock/issues/1118
     // We limit to a maximum number of tokens.
 
-    _tokenize(encodeInto) {
+    _tokenize() {
         const tokens = this._tokens;
-        let url = this._urlOut;
-        let l = url.length;
+        const url = this._urlOut;
+        const l = bidiTrie.setHaystackLen(url.length);
         if ( l === 0 ) { return 0; }
-        if ( l > 2048 ) {
-            url = url.slice(0, 2048);
-            l = 2048;
-        }
-        encodeInto.haystackLen = l;
         let j = 0;
         let hasq = -1;
         mainLoop: {
             const knownTokens = this.knownTokens;
             const vtc = this._validTokenChars;
-            const charCodes = encodeInto.haystack;
+            const charCodes = bidiTrie.haystack;
             let i = 0, n = 0, ti = 0, th = 0;
             for (;;) {
                 for (;;) {
@@ -3263,7 +3251,7 @@ class FilterCompiler {
         if ( other !== undefined ) {
             return Object.assign(this, other);
         }
-        this.reToken = /[%0-9A-Za-z]+/g;
+        this.reTokens = /[%0-9A-Za-z]+/g;
         this.optionValues = new Map();
         this.tokenIdToNormalizedType = new Map([
             [ sfp.NODE_TYPE_NET_OPTION_NAME_CNAME, bitFromType('cname') ],
@@ -3453,7 +3441,7 @@ class FilterCompiler {
         try {
             const re = new RegExp(s);
             return re.source;
-        } catch (ex) {
+        } catch {
         }
         return '';
     }
@@ -3814,11 +3802,11 @@ class FilterCompiler {
 
     // Note: a one-char token is better than a documented bad token.
     extractTokenFromPattern(pattern) {
-        this.reToken.lastIndex = 0;
+        this.reTokens.lastIndex = 0;
         let bestMatch = null;
         let bestBadness = 0x7FFFFFFF;
         for (;;) {
-            const match = this.reToken.exec(pattern);
+            const match = this.reTokens.exec(pattern);
             if ( match === null ) { break; }
             const token = match[0];
             const badness = token.length > 1 ? this.badTokens.get(token) || 0 : 1;
@@ -3828,7 +3816,7 @@ class FilterCompiler {
                 if ( c === 0x2A /* '*' */ ) { continue; }
             }
             if ( token.length < MAX_TOKEN_LENGTH ) {
-                const lastIndex = this.reToken.lastIndex;
+                const lastIndex = this.reTokens.lastIndex;
                 if ( lastIndex < pattern.length ) {
                     const c = pattern.charCodeAt(lastIndex);
                     if ( c === 0x2A /* '*' */ ) { continue; }
@@ -3852,18 +3840,18 @@ class FilterCompiler {
     //   Mind `\b` directives: `/\bads\b/` should result in token being `ads`,
     //   not `bads`.
     extractTokenFromRegex(pattern) {
-        pattern = sfp.utils.regex.toTokenizableStr(pattern);
-        this.reToken.lastIndex = 0;
+        pattern = tokenizableStrFromRegex(pattern);
+        this.reTokens.lastIndex = 0;
         let bestToken;
         let bestBadness = 0x7FFFFFFF;
         for (;;) {
-            const matches = this.reToken.exec(pattern);
+            const matches = this.reTokens.exec(pattern);
             if ( matches === null ) { break; }
             const { 0: token, index } = matches;
             if ( index === 0 || pattern.charAt(index - 1) === '\x01' ) {
                 continue;
             }
-            const { lastIndex } = this.reToken;
+            const { lastIndex } = this.reTokens;
             if (
                 token.length < MAX_TOKEN_LENGTH && (
                     lastIndex === pattern.length ||
@@ -4201,7 +4189,6 @@ StaticNetFilteringEngine.prototype.prime = function() {
     destHNTrieContainer.reset(
         keyvalStore.getItem('SNFE.destHNTrieContainer.trieDetails')
     );
-    bidiTriePrime();
 };
 
 /******************************************************************************/
@@ -4341,7 +4328,7 @@ StaticNetFilteringEngine.prototype.dnrFromCompiled = function(op, context, ...ar
     if ( op === 'begin' ) {
         Object.assign(context, {
             good: new Set(),
-            bad: new Set(),
+            bad: new Set(context.bad),
             invalid: new Set(),
             filterCount: 0,
             acceptedFilterCount: 0,
@@ -4470,6 +4457,8 @@ StaticNetFilteringEngine.prototype.dnrFromCompiled = function(op, context, ...ar
         [ PERMISSIONS_REALM, { type: 'permissions', priority: 0 } ],
         [ URLTRANSFORM_REALM, { type: 'uritransform', priority: 0 } ],
         [ HEADERS_REALM, { type: 'block', priority: 10 } ],
+        [ HEADERS_REALM | ALLOW_REALM, { type: 'allow', priority: 30 } ],
+        [ HEADERS_REALM | IMPORTANT_REALM, { type: 'allow', priority: 40 } ],
         [ URLSKIP_REALM, { type: 'urlskip', priority: 0 } ],
     ]);
     const partyness = new Map([
@@ -4523,8 +4512,16 @@ StaticNetFilteringEngine.prototype.dnrFromCompiled = function(op, context, ...ar
         }
     }
 
+    // Adjust `important` priority
+    for ( const rule of ruleset ) {
+        if ( rule.__important !== true ) { continue; }
+        if ( rule.priority === undefined ) { continue; }
+        rule.priority += 30;
+    }
+
     // Collect generichide filters
     const generichideExclusions = [];
+    const generichideInclusions = [];
     {
         const bucket = buckets.get(ALLOW_REALM | typeNameToTypeValue['generichide']);
         if ( bucket ) {
@@ -4535,6 +4532,26 @@ StaticNetFilteringEngine.prototype.dnrFromCompiled = function(op, context, ...ar
                         generichideExclusions.push(...rule.condition.initiatorDomains);
                     } else if ( rule.condition.requestDomains ) {
                         generichideExclusions.push(...rule.condition.requestDomains);
+                    }
+                    if ( rule.condition.excludedInitiatorDomains ) {
+                        generichideInclusions.push(...rule.condition.excludedInitiatorDomains);
+                    } else if ( rule.condition.excludedRequestDomains ) {
+                        generichideInclusions.push(...rule.condition.excludedRequestDomains);
+                    }
+                }
+            }
+        }
+    }
+    {
+        const bucket = buckets.get(BLOCKIMPORTANT_REALM | typeNameToTypeValue['generichide']);
+        if ( bucket ) {
+            for ( const rules of bucket.values() ) {
+                for ( const rule of rules ) {
+                    if ( rule.condition === undefined ) { continue; }
+                    if ( rule.condition.initiatorDomains ) {
+                        generichideInclusions.push(...rule.condition.initiatorDomains);
+                    } else if ( rule.condition.requestDomains ) {
+                        generichideInclusions.push(...rule.condition.requestDomains);
                     }
                 }
             }
@@ -4579,6 +4596,7 @@ StaticNetFilteringEngine.prototype.dnrFromCompiled = function(op, context, ...ar
     // Patch modifier filters
     for ( const rule of ruleset ) {
         if ( rule.__modifierType === undefined ) { continue; }
+        let patchDomainOption = false;
         switch ( rule.__modifierType ) {
         case 'csp':
             rule.action.type = 'modifyHeaders';
@@ -4601,6 +4619,7 @@ StaticNetFilteringEngine.prototype.dnrFromCompiled = function(op, context, ...ar
             if ( rule.__modifierAction === ALLOW_REALM ) {
                 dnrAddRuleError(rule, `Unsupported permissions exception: ${rule.__modifierValue}`);
             }
+            patchDomainOption = true;
             break;
         case 'redirect-rule': {
             let token = rule.__modifierValue;
@@ -4703,6 +4722,21 @@ StaticNetFilteringEngine.prototype.dnrFromCompiled = function(op, context, ...ar
             dnrAddRuleError(rule, `Unsupported modifier ${rule.__modifierType}`);
             break;
         }
+
+        // Some modifiers only work on document resources
+        // Related issue: https://github.com/uBlockOrigin/uBOL-home/issues/156
+        if ( patchDomainOption ) {
+            const domains = rule.condition.initiatorDomains;
+            if ( Array.isArray(domains) && domains.length !== 0 ) {
+                rule.condition.requestDomains ||= [];
+                rule.condition.requestDomains.push(...domains);
+            }
+            const notDomains = rule.condition.excludedInitiatorDomains;
+            if ( Array.isArray(notDomains) && notDomains.length !== 0 ) {
+                rule.condition.excludedRequestDomains ||= [];
+                rule.condition.excludedRequestDomains.push(...notDomains);
+            }
+        }
     }
 
     return {
@@ -4711,6 +4745,7 @@ StaticNetFilteringEngine.prototype.dnrFromCompiled = function(op, context, ...ar
         acceptedFilterCount: context.acceptedFilterCount,
         rejectedFilterCount: context.rejectedFilterCount,
         generichideExclusions: Array.from(new Set(generichideExclusions)),
+        generichideInclusions: Array.from(new Set(generichideInclusions)),
     };
 };
 
@@ -4793,7 +4828,6 @@ StaticNetFilteringEngine.prototype.optimize = function(throttle = 0) {
         'SNFE.destHNTrieContainer.trieDetails',
         destHNTrieContainer.optimize()
     );
-    bidiTrieOptimize();
     filterDataShrink();
 };
 
@@ -4801,7 +4835,7 @@ StaticNetFilteringEngine.prototype.optimize = function(throttle = 0) {
 
 StaticNetFilteringEngine.prototype.toSelfie = function() {
     this.optimize(0);
-    bidiTrieOptimize(true);
+    bidiTrie.optimize();
     keyvalStore.setItem('SNFE.origHNTrieContainer.trieDetails',
         origHNTrieContainer.optimize()
     );
@@ -4944,7 +4978,7 @@ StaticNetFilteringEngine.prototype.matchAndFetchModifiers = function(
         results,
     };
 
-    const tokenHashes = urlTokenizer.getTokens(bidiTrie);
+    const tokenHashes = urlTokenizer.getTokens();
     let i = 0;
     let th = 0, iunit = 0;
     for (;;) {
@@ -5134,7 +5168,7 @@ StaticNetFilteringEngine.prototype.realmMatchString = function(
     }
     // Pattern-based filters
     else {
-        const tokenHashes = urlTokenizer.getTokens(bidiTrie);
+        const tokenHashes = urlTokenizer.getTokens();
         let i = 0;
         for (;;) {
             tokenHash = tokenHashes[i];
@@ -5388,7 +5422,7 @@ StaticNetFilteringEngine.prototype.transformRequest = function(fctxt, out = []) 
             continue;
         }
         if ( directive.cache === null ) {
-            directive.cache = sfp.parseReplaceValue(directive.value);
+            directive.cache = sfp.parseReplaceByRegexValue(directive.value);
         }
         const cache = directive.cache;
         if ( cache === undefined ) { continue; }
@@ -5503,7 +5537,7 @@ StaticNetFilteringEngine.prototype.filterQuery = function(fctxt, out = []) {
         for ( const [ key, raw ] of params ) {
             let value = raw;
             try { value = decodeURIComponent(value); }
-            catch(ex) { }
+            catch { }
             if ( re.test(`${key}=${value}`) === not ) { continue; }
             if ( isException === false ) { params.delete(key); }
             filtered = true;

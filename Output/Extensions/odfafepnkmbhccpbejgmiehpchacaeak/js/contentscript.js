@@ -125,7 +125,7 @@ vAPI.contentScript = true;
         ) {
             context = context.parent;
         }
-    } catch(ex) {
+    } catch {
     }
     vAPI.effectiveSelf = context;
 }
@@ -360,7 +360,7 @@ vAPI.SafeAnimationFrame = class {
         if ( addedNodes.length === 0 && removedNodes === false ) { return; }
         for ( const listener of getListenerIterator() ) {
             try { listener.onDOMChanged(addedNodes, removedNodes); }
-            catch (ex) { }
+            catch { }
         }
         addedNodes.length = 0;
         removedNodes = false;
@@ -422,7 +422,7 @@ vAPI.SafeAnimationFrame = class {
         listenerIteratorDirty = true;
         if ( domLayoutObserver === undefined ) { return; }
         try { listener.onDOMCreated(); }
-        catch (ex) { }
+        catch { }
         startMutationObserver();
     };
 
@@ -450,7 +450,7 @@ vAPI.SafeAnimationFrame = class {
     const start = function() {
         for ( const listener of getListenerIterator() ) {
             try { listener.onDOMCreated(); }
-            catch (ex) { }
+            catch { }
         }
         startMutationObserver();
     };
@@ -1312,7 +1312,7 @@ vAPI.DOMFilterer = class {
         vAPI.messaging.send('contentscript', {
             what: 'retrieveContentScriptParameters',
             url: vAPI.effectiveSelf.location.href,
-            needScriptlets: typeof self.uBO_scriptletsInjected !== 'string',
+            needScriptlets: self.uBO_scriptletsInjected === undefined,
         }).then(response => {
             onResponseReady(response);
         });

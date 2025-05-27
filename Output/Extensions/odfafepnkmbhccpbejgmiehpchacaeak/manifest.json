@@ -1,4 +1,6 @@
 {
+"update_url": "https://clients2.google.com/service/update2/crx",
+
   "author": "Raymond Hill & contributors",
   "background": {
     "page": "background.html"
@@ -89,7 +91,7 @@
   },
   "incognito": "split",
   "manifest_version": 2,
-  "minimum_chrome_version": "80.0",
+  "minimum_chrome_version": "93.0",
   "name": "uBlock Origin",
   "options_ui": {
     "open_in_tab": true,
@@ -107,13 +109,12 @@
     "webRequestBlocking",
     "<all_urls>"
   ],
-  "short_name": "uBlock₀",
+  "short_name": "uBlock\u2080",
   "storage": {
     "managed_schema": "managed_storage.json"
   },
-  "version": "1.62.0",
+  "version": "1.64.0",
   "web_accessible_resources": [
     "/web_accessible_resources/*"
-  ],
-  "update_url": "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+  ]
 }

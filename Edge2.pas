@@ -355,9 +355,11 @@ type
 
     // Extensions
     procedure AddExtension(ExtensionDirectoryPath: string);
-    procedure RemoveExtension(ExtensionName: string);
+    procedure RemoveExtensionByName(ExtensionName: string);
+    procedure RemoveExtensionById(ExtensionName: string);
     procedure DeleteAllExtensions;
     function GetAllExtensions: TArray<string>;
+    function GetAllExtensionIDs: TArray<string>;
 
     /// <summary>
     ///   Adds a URI and resource context filter to the OnWebResourceRequested event
@@ -1608,6 +1610,42 @@ begin
         end));
 end;
 
+function TCustomEdgeBrowser.GetAllExtensionIDs: TArray<string>;
+var
+  EndCallback: boolean;
+  AResult: ^TArray<string>;
+  Status: HRESULT;
+begin
+  Result := [];
+  if FCoreWebViewProfile7 = nil then
+    Exit;
+  AResult := @Result;
+
+  EndCallback := false;
+  Status := FCoreWebViewProfile7.GetBrowserExtensions(Callback<HResult, ICoreWebView2BrowserExtensionList>.CreateAs<ICoreWebView2ProfileGetBrowserExtensionsCompletedHandler>(
+    function(ErrorCode: HResult; List: ICoreWebView2BrowserExtensionList): HResult stdcall
+    begin
+      Result := S_OK;
+      try
+        var ACount: cardinal;
+        var S: PWIdeChar;
+        var Ext: ICoreWebView2BrowserExtension;
+        List.Get_Count(ACount);
+        for var I := 0 to ACount-1 do begin
+          List.GetValueAtIndex(I, Ext);
+          Ext.Get_id(S);
+
+          AResult^ := AResult^ + [S];
+        end;
+      finally
+        EndCallback := true;
+      end;
+    end));
+
+  // Wait
+  WaitForWebViewEvent(EndCallback);
+end;
+
 function TCustomEdgeBrowser.GetAllExtensions: TArray<string>;
 var
   EndCallback: boolean;
@@ -1993,7 +2031,7 @@ begin
   ReinitializeWebView;
 end;
 
-procedure TCustomEdgeBrowser.RemoveExtension(ExtensionName: string);
+procedure TCustomEdgeBrowser.RemoveExtensionByName(ExtensionName: string);
 begin
   if FCoreWebViewProfile7 = nil then
     Exit;
@@ -2010,6 +2048,34 @@ begin
       for var I := 0 to ACount-1 do begin
         List.GetValueAtIndex(I, Ext);
         Ext.Get_name(S);
+
+        // Remove
+        if S = ExtensionName then begin
+          Ext.Remove(nil);
+          break;
+        end;
+      end;
+
+    end));
+end;
+
+procedure TCustomEdgeBrowser.RemoveExtensionById(ExtensionName: string);
+begin
+  if FCoreWebViewProfile7 = nil then
+    Exit;
+
+  FCoreWebViewProfile7.GetBrowserExtensions(Callback<HResult, ICoreWebView2BrowserExtensionList>.CreateAs<ICoreWebView2ProfileGetBrowserExtensionsCompletedHandler>(
+    function(ErrorCode: HResult; List: ICoreWebView2BrowserExtensionList): HResult stdcall
+    begin
+      Result := S_OK;
+
+      var ACount: cardinal;
+      var S: PWIdeChar;
+      var Ext: ICoreWebView2BrowserExtension;
+      List.Get_Count(ACount);
+      for var I := 0 to ACount-1 do begin
+        List.GetValueAtIndex(I, Ext);
+        Ext.Get_id(S);
 
         // Remove
         if S = ExtensionName then begin

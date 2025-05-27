@@ -95,8 +95,8 @@ begin
   if MessageDLG('Are you sure you want to remove all of the installed extensions of the web view? They will be re-installed from the Extensions folder in the apps directory', mtWarning, [mbYes, mbNo], 0) <> mrYes then
     Exit;
 
-  // Close browser
-  MainForm.Browser.DeleteAllExtensions;
+  // Delete all
+  MainForm.ResetExtensions;
 end;
 
 procedure TSettingsForm.Button6Click(Sender: TObject);

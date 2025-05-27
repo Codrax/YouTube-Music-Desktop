@@ -19,11 +19,9 @@
     Home: https://github.com/gorhill/uBlock
 */
 
-/******************************************************************************/
-
 import * as cssTree from '../lib/csstree/css-tree.js';
 import { ArglistParser } from './arglist-parser.js';
-import Regex from '../lib/regexanalyzer/regex.js';
+import { JSONPath } from './jsonpath.js';
 
 /*******************************************************************************
  * 
@@ -224,9 +222,11 @@ export const nodeTypeFromOptionName = new Map([
     [ '1p', NODE_TYPE_NET_OPTION_NAME_1P ],
     /* synonym */ [ 'first-party', NODE_TYPE_NET_OPTION_NAME_1P ],
     [ 'strict1p', NODE_TYPE_NET_OPTION_NAME_STRICT1P ],
+    /* synonym */ [ 'strict-first-party', NODE_TYPE_NET_OPTION_NAME_STRICT1P ],
     [ '3p', NODE_TYPE_NET_OPTION_NAME_3P ],
     /* synonym */ [ 'third-party', NODE_TYPE_NET_OPTION_NAME_3P ],
     [ 'strict3p', NODE_TYPE_NET_OPTION_NAME_STRICT3P ],
+    /* synonym */ [ 'strict-third-party', NODE_TYPE_NET_OPTION_NAME_STRICT3P ],
     [ 'all', NODE_TYPE_NET_OPTION_NAME_ALL ],
     [ 'badfilter', NODE_TYPE_NET_OPTION_NAME_BADFILTER ],
     [ 'cname', NODE_TYPE_NET_OPTION_NAME_CNAME ],
@@ -332,6 +332,29 @@ export const nodeNameFromNodeType = new Map([
         nodeNameFromNodeType.set(type, name);
     }
 }
+
+/******************************************************************************/
+
+// Local constants
+
+const DOMAIN_CAN_USE_WILDCARD        = 0b0000001;
+const DOMAIN_CAN_USE_ENTITY          = 0b0000010;
+const DOMAIN_CAN_USE_SINGLE_WILDCARD = 0b0000100;
+const DOMAIN_CAN_BE_NEGATED          = 0b0001000;
+const DOMAIN_CAN_BE_REGEX            = 0b0010000;
+const DOMAIN_CAN_BE_ANCESTOR         = 0b0100000;
+const DOMAIN_CAN_HAVE_PATH           = 0b1000000;
+
+const DOMAIN_FROM_FROMTO_LIST = DOMAIN_CAN_USE_ENTITY |
+    DOMAIN_CAN_BE_NEGATED |
+    DOMAIN_CAN_BE_REGEX;
+const DOMAIN_FROM_DENYALLOW_LIST = 0;
+const DOMAIN_FROM_EXT_LIST = DOMAIN_CAN_USE_ENTITY |
+    DOMAIN_CAN_USE_SINGLE_WILDCARD |
+    DOMAIN_CAN_BE_NEGATED |
+    DOMAIN_CAN_BE_REGEX |
+    DOMAIN_CAN_BE_ANCESTOR |
+    DOMAIN_CAN_HAVE_PATH;
 
 /******************************************************************************/
 
@@ -762,7 +785,7 @@ export class AstFilterParser {
         this.selectorCompiler = new ExtSelectorCompiler(options);
         // Regexes
         this.reWhitespaceStart = /^\s+/;
-        this.reWhitespaceEnd = /\s+$/;
+        this.reWhitespaceEnd = /(?:^|\S)(\s+)$/;
         this.reCommentLine = /^(?:!|#\s|####|\[adblock)/i;
         this.reExtAnchor = /(#@?(?:\$\?|\$|%|\?)?#).{1,2}/;
         this.reInlineComment = /(?:\s+#).*?$/;
@@ -782,7 +805,6 @@ export class AstFilterParser {
         this.reHostsRedirect = /(?:0\.0\.0\.0|broadcasthost|local|localhost(?:\.localdomain)?|ip6-\w+)(?:[^\w.-]|$)/;
         this.reNetOptionComma = /,(?:~?[13a-z-]+(?:=.*?)?|_+)(?:,|$)/;
         this.rePointlessLeftAnchor = /^\|\|?\*+/;
-        this.reIsTokenChar = /^[%0-9A-Za-z]/;
         this.rePointlessLeadingWildcards = /^(\*+)[^%0-9A-Za-z\u{a0}-\u{10FFFF}]/u;
         this.rePointlessTrailingSeparator = /\*(\^\**)$/;
         this.rePointlessTrailingWildcards = /(?:[^%0-9A-Za-z]|[%0-9A-Za-z]{7,})(\*+)$/;
@@ -804,13 +826,14 @@ export class AstFilterParser {
         this.reHostnameLabel = /[^.]+/g;
         this.reResponseheaderPattern = /^\^responseheader\(.*\)$/;
         this.rePatternScriptletJsonArgs = /^\{.*\}$/;
-        this.reGoodRegexToken = /[^\x01%0-9A-Za-z][%0-9A-Za-z]{7,}|[^\x01%0-9A-Za-z][%0-9A-Za-z]{1,6}[^\x01%0-9A-Za-z]/;
         this.reBadCSP = /(?:^|[;,])\s*report-(?:to|uri)\b/i;
         this.reBadPP = /(?:^|[;,])\s*report-to\b/i;
         this.reNetOption = /^(~?)([134a-z_-]+)(=?)/;
         this.reNoopOption = /^_+$/;
+        this.reAdvancedDomainSyntax = /^([^>]+?)(>>)?(\/.*)?$/;
         this.netOptionValueParser = new ArglistParser(',');
         this.scriptletArgListParser = new ArglistParser(',');
+        this.domainRegexValueParser = new ArglistParser('/');
     }
 
     finish() {
@@ -1315,7 +1338,7 @@ export class AstFilterParser {
                 const value = this.getNetOptionValue(NODE_TYPE_NET_OPTION_NAME_IPADDRESS);
                 if ( /^\/.+\/$/.test(value) ) {
                     try { void new RegExp(value); }
-                    catch(_) { realBad = true; }
+                    catch { realBad = true; }
                 }
                 break;
             }
@@ -1451,7 +1474,7 @@ export class AstFilterParser {
                 break;
             }
             const value = this.getNetOptionValue(NODE_TYPE_NET_OPTION_NAME_URLTRANSFORM);
-            if ( value !== '' && parseReplaceValue(value) === undefined ) {
+            if ( value !== '' && parseReplaceByRegexValue(value) === undefined ) {
                 this.astError = AST_ERROR_OPTION_BADVALUE;
                 realBad = true;
             }
@@ -1614,12 +1637,6 @@ export class AstFilterParser {
             if ( normal !== '' ) {
                 if ( normal !== pattern ) {
                     this.setNodeTransform(next, normal);
-                }
-                if ( this.interactive ) {
-                    const tokenizable = utils.regex.toTokenizableStr(normal);
-                    if ( this.reGoodRegexToken.test(tokenizable) === false ) {
-                        this.addNodeFlags(next, NODE_FLAG_PATTERN_UNTOKENIZABLE);
-                    }
                 }
             } else {
                 this.astTypeFlavor = AST_TYPE_NETWORK_PATTERN_BAD;
@@ -1839,7 +1856,7 @@ export class AstFilterParser {
             const hn = match[0].replace(this.reHostnameLabel, s => {
                 if ( this.reHasUnicodeChar.test(s) === false ) { return s; }
                 if ( s.charCodeAt(0) === 0x2D /* - */ ) { s = '*' + s; }
-                return this.normalizeHostnameValue(s, 0b0001) || s;
+                return this.normalizeHostnameValue(s, DOMAIN_CAN_USE_WILDCARD) || s;
             });
             normal = hn + normal.slice(match.index + match[0].length);
         }
@@ -1849,7 +1866,7 @@ export class AstFilterParser {
             normal = normal.replace(this.reUnicodeChars, s =>
                 encodeURIComponent(s).toLowerCase()
             );
-        } catch (ex) {
+        } catch {
             return;
         }
         return normal;
@@ -2018,11 +2035,11 @@ export class AstFilterParser {
         }
         switch ( nodeOptionType ) {
         case NODE_TYPE_NET_OPTION_NAME_DENYALLOW:
-            this.linkDown(next, this.parseDomainList(next, '|'), 0b00000);
+            this.linkDown(next, this.parseDomainList(next, '|'), DOMAIN_FROM_DENYALLOW_LIST);
             break;
         case NODE_TYPE_NET_OPTION_NAME_FROM:
         case NODE_TYPE_NET_OPTION_NAME_TO:
-            this.linkDown(next, this.parseDomainList(next, '|', 0b11010));
+            this.linkDown(next, this.parseDomainList(next, '|', DOMAIN_FROM_FROMTO_LIST));
             break;
         default:
             break;
@@ -2054,7 +2071,7 @@ export class AstFilterParser {
         return this.getNodeTransform(valueNode);
     }
 
-    parseDomainList(parent, separator, mode = 0b00000) {
+    parseDomainList(parent, separator, mode = 0) {
         const parentBeg = this.nodes[parent+NODE_BEG_INDEX];
         const parentEnd = this.nodes[parent+NODE_END_INDEX];
         const containerNode = this.allocTypedNode(
@@ -2080,11 +2097,20 @@ export class AstFilterParser {
             );
             this.parseDomain(next, parseDetails);
             end = beg + parseDetails.len;
+            const badSeparator = end < listEnd && s.charCodeAt(end) !== separatorCode;
+            if ( badSeparator ) {
+                end = s.indexOf(separator, end);
+                if ( end === -1 ) { end = listEnd; }
+            }
             this.nodes[next+NODE_END_INDEX] = parentBeg + end;
             if ( end !== beg ) {
                 domainNode = next;
                 this.linkDown(domainNode, parseDetails.node);
                 prev = this.linkRight(prev, domainNode);
+                if ( badSeparator ) {
+                    this.addNodeFlags(domainNode, NODE_FLAG_ERROR);
+                    this.addFlags(AST_FLAG_HAS_ERROR);
+                }
             } else {
                 domainNode = 0;
                 if ( separatorNode !== 0 ) {
@@ -2128,29 +2154,29 @@ export class AstFilterParser {
         if ( not ) {
             this.addNodeFlags(parent, NODE_FLAG_IS_NEGATED);
             head = this.allocTypedNode(NODE_TYPE_OPTION_VALUE_NOT, beg, beg + 1);
-            if ( (parseDetails.mode & 0b1000) === 0 ) {
+            if ( (parseDetails.mode & DOMAIN_CAN_BE_NEGATED) === 0 ) {
                 this.addNodeFlags(parent, NODE_FLAG_ERROR);
             }
             beg += 1;
         }
         const c0 = this.charCodeAt(beg);
         let end = beg;
-        let type = 0;
+        let isRegex = false;
         if ( c0 === 0x2F /* / */ ) {
-            end = this.indexOf('/', beg + 1, parentEnd);
-            if ( end !== -1 ) { end += 1; }
-            type = 1;
+            this.domainRegexValueParser.nextArg(this.raw, beg+1);
+            end = this.domainRegexValueParser.separatorEnd;
+            isRegex = true;
         } else if ( c0 === 0x5B /* [ */ && this.startsWith('[$domain=/', beg) ) {
             end = this.indexOf('/]', beg + 10, parentEnd);
             if ( end !== -1 ) { end += 2; }
-            type = 2;
+            isRegex = true;
         } else {
             end = this.indexOf(parseDetails.separator, end, parentEnd);
         }
         if ( end === -1 ) { end = parentEnd; }
         if ( beg !== end ) {
             next = this.allocTypedNode(NODE_TYPE_OPTION_VALUE_DOMAIN, beg, end);
-            const hn = this.normalizeDomainValue(next, type, parseDetails.mode);
+            const hn = this.normalizeDomainValue(next, isRegex, parseDetails.mode);
             if ( hn !== undefined ) {
                 if ( hn !== '' ) {
                     this.setNodeTransform(next, hn);
@@ -2173,23 +2199,39 @@ export class AstFilterParser {
         parseDetails.len = end - parentBeg;
     }
 
-    // mode bits:
-    //   0b00001: can use wildcard at any position
-    //   0b00010: can use entity-based hostnames
-    //   0b00100: can use single wildcard
-    //   0b01000: can be negated
-    //   0b10000: can be a regex
-    normalizeDomainValue(node, type, modeBits) {
-        const s = this.getNodeString(node);
-        if ( type === 0 ) {
-            return this.normalizeHostnameValue(s, modeBits);
+    normalizeDomainValue(node, isRegex, modeBits) {
+        const raw = this.getNodeString(node);
+        if ( isRegex ) {
+            if ( (modeBits & DOMAIN_CAN_BE_REGEX) === 0 ) { return ''; }
+            return this.normalizeDomainRegexValue(raw);
         }
-        if ( (modeBits & 0b10000) === 0 ) { return ''; }
-        const regex = type === 1 ? s : `/${s.slice(10, -2)}/`;
+        // Common: Assume plain hostname
+        const r1 = this.normalizeHostnameValue(raw, modeBits);
+        if ( r1 === undefined ) { return; }
+        if ( r1 !== '' ) { return r1; }
+        // Rare: Maybe advanced syntax is used
+        const match = this.reAdvancedDomainSyntax.exec(raw);
+        if ( match === null ) { return '' };
+        const isAncestor = match[2] !== undefined;
+        if ( isAncestor && (modeBits & DOMAIN_CAN_BE_ANCESTOR) === 0 ) { return ''; }
+        const hasPath = match[3] !== undefined;
+        if ( hasPath && (modeBits & DOMAIN_CAN_HAVE_PATH) === 0 ) { return ''; }
+        if ( isAncestor && hasPath ) { return ''; }
+        const r2 = this.normalizeHostnameValue(match[1], modeBits);
+        if ( r2 === undefined ) { return; }
+        if ( r2 === '' ) { return ''; }
+        return `${r2}${match[2] ?? ''}${match[3] ?? ''}`;
+    }
+
+    normalizeDomainRegexValue(before) {
+        const regex = before.startsWith('[$domain=/')
+            ? `${before.slice(9, -1)}`
+            : before;
         const source = this.normalizeRegexPattern(regex);
         if ( source === '' ) { return ''; }
-        if ( type === 1 && source === regex ) { return; }
-        return `/${source}/`;
+        const after = `/${source}/`;
+        if ( after === before ) { return; }
+        return after;
     }
 
     parseExt(parent, anchorBeg, anchorLen) {
@@ -2207,7 +2249,8 @@ export class AstFilterParser {
             );
             this.addFlags(AST_FLAG_HAS_OPTIONS);
             this.addNodeToRegister(NODE_TYPE_EXT_OPTIONS, next);
-            this.linkDown(next, this.parseDomainList(next, ',', 0b11110));
+            const down = this.parseDomainList(next, ',', DOMAIN_FROM_EXT_LIST);
+            this.linkDown(next, down);
             prev = this.linkRight(prev, next);
         }
         next = this.allocTypedNode(
@@ -2496,6 +2539,12 @@ export class AstFilterParser {
         return head;
     }
 
+    getResponseheaderName() {
+        if ( this.isResponseheaderFilter() === false ) { return ''; }
+        const root = this.getBranchFromType(NODE_TYPE_EXT_PATTERN_RESPONSEHEADER);
+        return this.getNodeString(root);
+    }
+
     parseExtPatternHtml(parent) {
         const beg = this.nodes[parent+NODE_BEG_INDEX];
         const end = this.nodes[parent+NODE_END_INDEX];
@@ -2737,7 +2786,7 @@ export class AstFilterParser {
 
     rightWhitespaceCount(s) {
         const match = this.reWhitespaceEnd.exec(s);
-        return match === null ? 0 : match[0].length;
+        return match === null ? 0 : match[1].length;
     }
 
     nextCommaInCommaSeparatedListString(s, start) {
@@ -2794,17 +2843,11 @@ export class AstFilterParser {
     // Ultimately, let the browser API do the hostname normalization, after
     // making some other trivial checks.
     //
-    // mode bits:
-    //   0b00001: can use wildcard at any position
-    //   0b00010: can use entity-based hostnames
-    //   0b00100: can use single wildcard
-    //   0b01000: can be negated
-    //
     // returns:
     //   undefined: no normalization needed, use original hostname
     //   empty string: hostname is invalid
     //   non-empty string: normalized hostname
-    normalizeHostnameValue(s, modeBits = 0b00000) {
+    normalizeHostnameValue(s, modeBits = 0) {
         if ( this.reHostnameAscii.test(s) ) { return; }
         if ( this.reBadHostnameChars.test(s) ) { return ''; }
         let hn = s;
@@ -2812,13 +2855,13 @@ export class AstFilterParser {
         if ( hasWildcard ) {
             if ( modeBits === 0 ) { return ''; }
             if ( hn.length === 1 ) {
-                if ( (modeBits & 0b0100) === 0 ) { return ''; }
+                if ( (modeBits & DOMAIN_CAN_USE_SINGLE_WILDCARD) === 0 ) { return ''; }
                 return;
             }
-            if ( (modeBits & 0b0010) !== 0 ) {
+            if ( (modeBits & DOMAIN_CAN_USE_ENTITY) !== 0 ) {
                 if ( this.rePlainEntity.test(hn) ) { return; }
                 if ( this.reIsEntity.test(hn) === false ) { return ''; }
-            } else if ( (modeBits & 0b0001) === 0 ) {
+            } else if ( (modeBits & DOMAIN_CAN_USE_WILDCARD) === 0 ) {
                 return '';
             }
             hn = hn.replace(/\*/g, '__asterisk__');
@@ -2827,7 +2870,7 @@ export class AstFilterParser {
         try {
             this.punycoder.hostname = hn;
             hn = this.punycoder.hostname;
-        } catch (_) {
+        } catch {
             return '';
         }
         if ( hn === '_' || hn === '' ) { return ''; }
@@ -2835,7 +2878,7 @@ export class AstFilterParser {
             hn = this.punycoder.hostname.replace(/__asterisk__/g, '*');
         }
         if (
-            (modeBits & 0b0001) === 0 && (
+            (modeBits & DOMAIN_CAN_USE_WILDCARD) === 0 && (
                 hn.charCodeAt(0) === 0x2E /* . */ ||
                 exCharCodeAt(hn, -1) === 0x2E /* . */
             )
@@ -2951,7 +2994,7 @@ export function parseQueryPruneValue(arg) {
         try {
             out.re = new RegExp(match[1], match[2] || '');
         }
-        catch(ex) {
+        catch {
             out.bad = true;
         }
         return out;
@@ -2960,7 +3003,7 @@ export function parseQueryPruneValue(arg) {
     if ( s.startsWith('|') ) {
         try {
             out.re = new RegExp('^' + s.slice(1), 'i');
-        } catch(ex) {
+        } catch {
             out.bad = true;
         }
         return out;
@@ -2990,7 +3033,7 @@ export function parseHeaderValue(arg) {
         try {
             out.re = new RegExp(match[1], match[2] || '');
         }
-        catch(ex) {
+        catch {
             out.bad = true;
         }
     }
@@ -3000,7 +3043,7 @@ export function parseHeaderValue(arg) {
 
 // https://adguard.com/kb/general/ad-filtering/create-own-filters/#replace-modifier
 
-export function parseReplaceValue(s) {
+export function parseReplaceByRegexValue(s) {
     if ( s.charCodeAt(0) !== 0x2F /* / */ ) { return; }
     const parser = new ArglistParser('/');
     parser.nextArg(s, 1);
@@ -3022,7 +3065,24 @@ export function parseReplaceValue(s) {
     const flags = s.slice(parser.separatorEnd);
     try {
         return { re: new RegExp(pattern, flags), replacement };
-    } catch(_) {
+    } catch {
+    }
+}
+
+export function parseReplaceValue(s) {
+    if ( s.startsWith('/') ) {
+        const r = parseReplaceByRegexValue(s);
+        if ( r ) { r.type = 'text'; }
+        return r;
+    }
+    const pos = s.indexOf(':');
+    if ( pos === -1 ) { return; }
+    const type = s.slice(0, pos);
+    if ( type === 'json' || type === 'jsonl' ) {
+        const query = s.slice(pos+1);
+        const jsonp = JSONPath.create(query);
+        if ( jsonp.valid === false ) { return; }
+        return { type, jsonp };
     }
 }
 
@@ -3032,9 +3092,11 @@ export const netOptionTokenDescriptors = new Map([
     [ '1p', { canNegate: true } ],
     /* synonym */ [ 'first-party', { canNegate: true } ],
     [ 'strict1p', { } ],
+    /* synonym */ [ 'strict-first-party', { } ],
     [ '3p', { canNegate: true } ],
     /* synonym */ [ 'third-party', { canNegate: true } ],
     [ 'strict3p', { } ],
+    /* synonym */ [ 'strict-third-party', { } ],
     [ 'all', { } ],
     [ 'badfilter', { } ],
     [ 'cname', { allowOnly: true } ],
@@ -4056,7 +4118,7 @@ class ExtSelectorCompiler {
         try {
             const expr = doc.createExpression(r.s, null);
             expr.evaluate(doc, XPathResult.ANY_UNORDERED_NODE_TYPE);
-        } catch (e) {
+        } catch {
             return;
         }
         return r.s;
@@ -4097,188 +4159,6 @@ export const proceduralOperatorTokens = new Map([
 
 export const utils = (( ) => {
 
-    // Depends on:
-    // https://github.com/foo123/RegexAnalyzer
-    const regexAnalyzer = Regex && Regex.Analyzer || null;
-
-    class regex {
-        static firstCharCodeClass(s) {
-            return /^[\x01\x03%0-9A-Za-z]/.test(s) ? 1 : 0;
-        }
-
-        static lastCharCodeClass(s) {
-            return /[\x01\x03%0-9A-Za-z]$/.test(s) ? 1 : 0;
-        }
-
-        static tokenizableStrFromNode(node) {
-            switch ( node.type ) {
-            case 1: /* T_SEQUENCE, 'Sequence' */ {
-                let s = '';
-                for ( let i = 0; i < node.val.length; i++ ) {
-                    s += this.tokenizableStrFromNode(node.val[i]);
-                }
-                return s;
-            }
-            case 2: /* T_ALTERNATION, 'Alternation' */
-            case 8: /* T_CHARGROUP, 'CharacterGroup' */ {
-                if ( node.flags.NegativeMatch ) { return '\x01'; }
-                let firstChar = 0;
-                let lastChar = 0;
-                for ( let i = 0; i < node.val.length; i++ ) {
-                    const s = this.tokenizableStrFromNode(node.val[i]);
-                    if ( firstChar === 0 && this.firstCharCodeClass(s) === 1 ) {
-                        firstChar = 1;
-                    }
-                    if ( lastChar === 0 && this.lastCharCodeClass(s) === 1 ) {
-                        lastChar = 1;
-                    }
-                    if ( firstChar === 1 && lastChar === 1 ) { break; }
-                }
-                return String.fromCharCode(firstChar, lastChar);
-            }
-            case 4: /* T_GROUP, 'Group' */ {
-                if (
-                    node.flags.NegativeLookAhead === 1 ||
-                    node.flags.NegativeLookBehind === 1
-                ) {
-                    return '';
-                }
-                return this.tokenizableStrFromNode(node.val);
-            }
-            case 16: /* T_QUANTIFIER, 'Quantifier' */ {
-                if ( node.flags.max === 0 ) { return ''; }
-                const s = this.tokenizableStrFromNode(node.val);
-                const first = this.firstCharCodeClass(s);
-                const last = this.lastCharCodeClass(s);
-                if ( node.flags.min !== 0 ) {
-                    return String.fromCharCode(first, last);
-                }
-                return String.fromCharCode(first+2, last+2);
-            }
-            case 64: /* T_HEXCHAR, 'HexChar' */ {
-                if (
-                    node.flags.Code === '01' ||
-                    node.flags.Code === '02' ||
-                    node.flags.Code === '03'
-                ) {
-                    return '\x00';
-                }
-                return node.flags.Char;
-            }
-            case 128: /* T_SPECIAL, 'Special' */ {
-                const flags = node.flags;
-                if (
-                    flags.EndCharGroup === 1 || // dangling `]`
-                    flags.EndGroup === 1 ||     // dangling `)`
-                    flags.EndRepeats === 1      // dangling `}`
-                ) {
-                    throw new Error('Unmatched bracket');
-                }
-                return flags.MatchEnd === 1 ||
-                       flags.MatchStart === 1 ||
-                       flags.MatchWordBoundary === 1
-                    ? '\x00'
-                    : '\x01';
-            }
-            case 256: /* T_CHARS, 'Characters' */ {
-                for ( let i = 0; i < node.val.length; i++ ) {
-                    if ( this.firstCharCodeClass(node.val[i]) === 1 ) {
-                        return '\x01';
-                    }
-                }
-                return '\x00';
-            }
-            // Ranges are assumed to always involve token-related characters.
-            case 512: /* T_CHARRANGE, 'CharacterRange' */ {
-                return '\x01';
-            }
-            case 1024: /* T_STRING, 'String' */ {
-                return node.val;
-            }
-            case 2048: /* T_COMMENT, 'Comment' */ {
-                return '';
-            }
-            default:
-                break;
-            }
-            return '\x01';
-        }
-
-        static isValid(reStr) {
-            try {
-                void new RegExp(reStr);
-                if ( regexAnalyzer !== null ) {
-                    void this.tokenizableStrFromNode(
-                        regexAnalyzer(reStr, false).tree()
-                    );
-                }
-            } catch(ex) {
-                return false;
-            }
-            return true;
-        }
-
-        static isRE2(reStr) {
-            if ( regexAnalyzer === null ) { return true; }
-            let tree;
-            try {
-                tree = regexAnalyzer(reStr, false).tree();
-            } catch(ex) {
-                return;
-            }
-            const isRE2 = node => {
-                if ( node instanceof Object === false ) { return true; }
-                if ( node.flags instanceof Object ) {
-                    if ( node.flags.LookAhead === 1 ) { return false; }
-                    if ( node.flags.NegativeLookAhead === 1 ) { return false; }
-                    if ( node.flags.LookBehind === 1 ) { return false; }
-                    if ( node.flags.NegativeLookBehind === 1 ) { return false; }
-                }
-                if ( Array.isArray(node.val) ) {
-                    for ( const entry of node.val ) {
-                        if ( isRE2(entry) === false ) { return false; }
-                    }
-                }
-                if ( node.val instanceof Object ) {
-                    return isRE2(node.val);
-                }
-                return true;
-            };
-            return isRE2(tree);
-        }
-
-        static toTokenizableStr(reStr) {
-            if ( regexAnalyzer === null ) { return ''; }
-            let s = '';
-            try {
-                s = this.tokenizableStrFromNode(
-                    regexAnalyzer(reStr, false).tree()
-                );
-            } catch(ex) {
-            }
-            // Process optional sequences
-            const reOptional = /[\x02\x03]+/;
-            for (;;) {
-                const match = reOptional.exec(s);
-                if ( match === null ) { break; }
-                const left = s.slice(0, match.index);
-                const middle = match[0];
-                const right = s.slice(match.index + middle.length);
-                s = left;
-                s += this.firstCharCodeClass(right) === 1 ||
-                        this.firstCharCodeClass(middle) === 1
-                    ? '\x01'
-                    : '\x00';
-                s += this.lastCharCodeClass(left) === 1 ||
-                        this.lastCharCodeClass(middle) === 1
-                    ? '\x01'
-                    : '\x00';
-                s += right;
-            }
-            return s;
-        }
-    }
-
     const preparserTokens = new Map([
         [ 'ext_ublock', 'ublock' ],
         [ 'ext_ubol', 'ubol' ],
@@ -4316,7 +4196,7 @@ export const utils = (( ) => {
     const toURL = url => {
         try {
             return new URL(url.trim());
-        } catch (ex) {
+        } catch {
         }
     };
 
@@ -4496,7 +4376,6 @@ export const utils = (( ) => {
 
     return {
         preparser,
-        regex,
     };
 })();
 

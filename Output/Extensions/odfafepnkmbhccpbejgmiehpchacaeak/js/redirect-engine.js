@@ -19,12 +19,8 @@
     Home: https://github.com/gorhill/uBlock
 */
 
-'use strict';
-
-/******************************************************************************/
-
-import redirectableResources from './redirect-resources.js';
 import { LineIterator, orphanizeString } from './text-utils.js';
+import redirectableResources from './redirect-resources.js';
 
 /******************************************************************************/
 
@@ -464,6 +460,7 @@ class RedirectEngine {
         for ( const [ token, entry ] of this.resources ) {
             this.resources.set(token, RedirectEntry.fromDetails(entry));
         }
+        this.modifyTime = Date.now();
         return true;
     }
 
