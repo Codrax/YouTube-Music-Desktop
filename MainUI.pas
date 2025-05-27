@@ -137,6 +137,8 @@ type
     procedure WMSysCommand(var Message: TWMSysCommand); message WM_SYSCOMMAND;
     procedure WMRestoreAppFromTray(var Message: TMessage); message WM_RESTOREAPPFROMTRAY;
 
+    procedure WMActivate(var Msg: TWMActivate); message WM_ACTIVATE;
+
   private
     procedure CloseProgram;
 
@@ -506,6 +508,8 @@ begin
     Browser.DefaultContextMenusEnabled := false;
     Browser.BuiltInErrorPageEnabled := false;
     Browser.DevToolsEnabled := false;
+    Browser.StatusBarEnabled := false;
+    Browser.ZoomControlEnabled := false;
   end else
     Browser.OpenDevTools;
 
@@ -514,6 +518,9 @@ begin
     ResetExtensions;
     Settings.Put<string>('extension version', 'version', EXTENSIONS_VERSION.ToString);
   end;
+
+  // Get settings
+  Browser.ZoomFactor := Settings.Get<double>('accessibility', 'zoom', 1);
 
   // Get installed
   var Installed := ReadKnownExtensions;
@@ -937,6 +944,20 @@ begin
       Sleep(1);
       Application.ProcessMessages;
   end;
+end;
+
+procedure TMainForm.WMActivate(var Msg: TWMActivate);
+begin
+  inherited;
+
+  if (Msg.Active in [WA_ACTIVE, WA_CLICKACTIVE]) and not Msg.Minimized then
+    try
+      // Select webview
+      if Browser.Visible then
+        Browser.DoEnter;
+        //Browser.SetFocus;
+    except
+    end;
 end;
 
 procedure TMainForm.WMRestoreAppFromTray(var Message: TMessage);

@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls, UITypes,
-  Cod.SysUtils, Cod.Files, Cod.Windows, IOUtils;
+  Cod.SysUtils, Cod.Files, Cod.Windows, IOUtils, Vcl.ComCtrls;
 
 type
   TSettingsForm = class(TForm)
@@ -40,6 +40,10 @@ type
     Label16: TLabel;
     Button5: TButton;
     Button6: TButton;
+    Label17: TLabel;
+    Label18: TLabel;
+    TrackBar1: TTrackBar;
+    Label19: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
@@ -51,6 +55,7 @@ type
     procedure Button4Click(Sender: TObject);
     procedure Button5Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
+    procedure TrackBar1Change(Sender: TObject);
   private
     { Private declarations }
     procedure UpdateStartupFile;
@@ -170,6 +175,20 @@ begin
   CheckBox3.Checked := Settings.Get<boolean>('minimize-to-tray', 'general', true);
   CheckBox4.Checked := Settings.Get<boolean>('general', 'continue-playback', true);
   CheckBox5.Checked := Settings.Get<boolean>('app', 'check-updates', true);
+  TrackBar1.Position := round(Settings.Get<double>('accessibility', 'zoom', 1)*100);
+end;
+
+procedure TSettingsForm.TrackBar1Change(Sender: TObject);
+begin
+  Label19.Caption := TTrackBar(Sender).Position.ToString + '%';
+
+  // Save
+  if TTrackBar(Sender).Focused then begin
+    const NewZoom = TTrackBar(Sender).Position / 100;
+    Settings.Put<double>('accessibility', 'zoom', NewZoom);
+
+    MainForm.Browser.ZoomFactor := NewZoom;
+  end;
 end;
 
 procedure TSettingsForm.UpdateStartupFile;

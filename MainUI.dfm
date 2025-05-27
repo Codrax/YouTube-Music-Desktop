@@ -7654,7 +7654,6 @@ object MainForm: TMainForm
       item
         Action = ActionPrev
         ButtonState = [Enabled, DismissOnClick]
-        Hint = 'Previous'
         Icon.Data = {
           00000100060000000000010020000C1100006600000080800000010020002808
           0100721100004040000001002000284200009A1901003030000001002000A825
@@ -10911,7 +10910,6 @@ object MainForm: TMainForm
       end
       item
         Action = ActionPlayPause
-        Hint = 'Play/Pause'
         Icon.Data = {
           0000010006000000000001002000F91200006600000080800000010020002808
           01005F130000404000000100200028420000871B01003030000001002000A825
@@ -14185,7 +14183,6 @@ object MainForm: TMainForm
       item
         Action = ActionNext
         ButtonState = [Enabled, DismissOnClick]
-        Hint = 'Next'
         Icon.Data = {
           0000010006000000000001002000DB1000006600000080800000010020002808
           010041110000404000000100200028420000691901003030000001002000A825

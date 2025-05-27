@@ -3,7 +3,7 @@ object SettingsForm: TSettingsForm
   Top = 0
   BorderStyle = bsDialog
   Caption = 'Settings'
-  ClientHeight = 511
+  ClientHeight = 561
   ClientWidth = 944
   Color = clBlack
   Font.Charset = DEFAULT_CHARSET
@@ -41,8 +41,8 @@ object SettingsForm: TSettingsForm
     ParentFont = False
   end
   object Label3: TLabel
-    Left = 24
-    Top = 193
+    Left = 23
+    Top = 186
     Width = 46
     Height = 17
     Caption = 'General'
@@ -72,8 +72,8 @@ object SettingsForm: TSettingsForm
     Layout = tlCenter
   end
   object Label6: TLabel
-    Left = 48
-    Top = 223
+    Left = 47
+    Top = 216
     Width = 250
     Height = 19
     AutoSize = False
@@ -131,8 +131,8 @@ object SettingsForm: TSettingsForm
     WordWrap = True
   end
   object Label11: TLabel
-    Left = 48
-    Top = 254
+    Left = 47
+    Top = 247
     Width = 250
     Height = 19
     AutoSize = False
@@ -155,7 +155,7 @@ object SettingsForm: TSettingsForm
   end
   object Label13: TLabel
     Left = 24
-    Top = 302
+    Top = 384
     Width = 68
     Height = 17
     Caption = 'Application'
@@ -168,7 +168,7 @@ object SettingsForm: TSettingsForm
   end
   object Label14: TLabel
     Left = 48
-    Top = 324
+    Top = 406
     Width = 250
     Height = 19
     AutoSize = False
@@ -201,9 +201,36 @@ object SettingsForm: TSettingsForm
     Font.Style = []
     ParentFont = False
   end
+  object Label17: TLabel
+    Left = 23
+    Top = 287
+    Width = 72
+    Height = 17
+    Caption = 'Accessibility'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWhite
+    Font.Height = -13
+    Font.Name = 'Segoe UI Semibold'
+    Font.Style = []
+    ParentFont = False
+  end
+  object Label18: TLabel
+    Left = 24
+    Top = 310
+    Width = 32
+    Height = 15
+    Caption = 'Zoom'
+  end
+  object Label19: TLabel
+    Left = 263
+    Top = 340
+    Width = 28
+    Height = 15
+    Caption = '100%'
+  end
   object Panel1: TPanel
     Left = 0
-    Top = 451
+    Top = 501
     Width = 944
     Height = 60
     Align = alBottom
@@ -262,8 +289,8 @@ object SettingsForm: TSettingsForm
     OnClick = CheckBox2Click
   end
   object CheckBox3: TCheckBox
-    Left = 24
-    Top = 224
+    Left = 23
+    Top = 217
     Width = 275
     Height = 18
     Checked = True
@@ -304,15 +331,15 @@ object SettingsForm: TSettingsForm
     Left = 320
     Top = 80
     Width = 2
-    Height = 350
+    Height = 400
     BevelOuter = bvNone
     Color = 1381653
     ParentBackground = False
     TabOrder = 12
   end
   object CheckBox4: TCheckBox
-    Left = 24
-    Top = 255
+    Left = 23
+    Top = 248
     Width = 275
     Height = 18
     Checked = True
@@ -329,7 +356,7 @@ object SettingsForm: TSettingsForm
   end
   object CheckBox5: TCheckBox
     Left = 24
-    Top = 325
+    Top = 407
     Width = 275
     Height = 18
     Checked = True
@@ -346,7 +373,7 @@ object SettingsForm: TSettingsForm
   end
   object Button4: TButton
     Left = 24
-    Top = 355
+    Top = 437
     Width = 275
     Height = 40
     Caption = 'Check for updates now'
@@ -384,7 +411,7 @@ object SettingsForm: TSettingsForm
     Left = 640
     Top = 80
     Width = 2
-    Height = 350
+    Height = 400
     BevelOuter = bvNone
     Color = 1381653
     ParentBackground = False
@@ -415,5 +442,17 @@ object SettingsForm: TSettingsForm
     TabOrder = 9
     WordWrap = True
     OnClick = Button6Click
+  end
+  object TrackBar1: TTrackBar
+    Left = 24
+    Top = 333
+    Width = 233
+    Height = 28
+    Max = 400
+    Min = 50
+    Frequency = 50
+    Position = 50
+    TabOrder = 14
+    OnChange = TrackBar1Change
   end
 end
