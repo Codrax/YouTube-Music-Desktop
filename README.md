@@ -14,6 +14,7 @@
 - Custom player themes (ThemeSong for YouTube Music™ (Enhancer)
 - Zoom
 - Taskbar & action center player controls
+- YouTube Music Offline mode support
 
 
 To access most settings and UIs specific to the app, right-click on the application's titlebar
