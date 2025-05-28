@@ -7645,6 +7645,7 @@ object MainForm: TMainForm
     end
   end
   object DelayedUpdateCheck: TTimer
+    Enabled = False
     Interval = 2000
     OnTimer = DelayedUpdateCheckTimer
     Left = 872

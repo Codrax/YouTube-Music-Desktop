@@ -640,6 +640,9 @@ begin
     DebugStat.Destroy;
   end;
 
+  // Tasks
+  DelayedUpdateCheck.Enabled := Settings.Get<boolean>('app', 'check-updates', true);
+
   // Player
   SetCurrentProcessExplicitAppUserModelID( APP_USER_MODEL_ID );
 
@@ -821,19 +824,16 @@ end;
 
 procedure TMainForm.DelayedUpdateCheckTimer(Sender: TObject);
 begin
-  TTimer(Sender).Enabled := false;
-
-  // Get
-  if not Settings.Get<boolean>('app', 'check-updates', true) then
-    Exit;
-
-  // Last
-  const LastUpdateCheck = Status.Get<double>('last-update-check', 0);
-  if (LastUpdateCheck <> 0) and (DaysBetween(Now, LastUpdateCheck) < 1) then
-    Exit;
-
   // Is in tray
   if InTray then
+    Exit;
+
+  // Disable self
+  TTimer(Sender).Enabled := false;
+
+  // Last check < a day ago
+  const LastUpdateCheck = Status.Get<double>('last-update-check', 0);
+  if (LastUpdateCheck <> 0) and (DaysBetween(Now, LastUpdateCheck) < 1) then
     Exit;
 
   // Write last update check
