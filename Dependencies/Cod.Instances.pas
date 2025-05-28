@@ -1,5 +1,7 @@
 unit Cod.Instances;
 
+{$SCOPEDENUMS ON}
+
 /// EASY MODE:
 ///  Initialize the instance with InitializeInstance() as you desire
 ///  If the instance exists and HasAppInfo() is true, you can use
@@ -12,6 +14,9 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, Vcl.Forms, SysUtils;
+
+const
+  USE_DEFAULT_EXIT_CODE = integer.MinValue;
 
 type
   TAutoInstanceMode = (TerminateIfOtherExist, TerminateAndFocusOther);
@@ -51,9 +56,11 @@ procedure PutAppInfo(hwnd: HWND); overload;
 function GetAppInfo: TAppSharedInfo;
 
 (* Automatic tasks *)
-procedure InstanceAuto(Mode: TAutoInstanceMode);
-procedure AutoTerminateIfOtherInstanceExists;
-procedure AutoFocusIfOtherInstanceExists;
+procedure InstanceAuto(Mode: TAutoInstanceMode); overload;
+procedure InstanceAuto(Mode: TAutoInstanceMode; AExitCode: integer; SetExitCode: boolean); overload;
+
+procedure BringOtherWindowToTopAuto;
+procedure SendOtherWindowMessageAuto(Msg: UINT; wParam: WPARAM; lParam: LPARAM);
 
 var
   HaltResultCode: integer = 0;
@@ -213,8 +220,18 @@ begin
 end;
 
 procedure InstanceAuto(Mode: TAutoInstanceMode);
-var
-  Info: TAppSharedInfo;
+begin
+  InstanceAuto(Mode, 0, false);
+end;
+
+procedure InstanceAuto(Mode: TAutoInstanceMode; AExitCode: integer; SetExitCode: boolean);
+procedure DoHalt;
+begin
+  if SetExitCode then
+    Halt( AExitCode )
+  else
+    Halt;
+end;
 begin
   InitializeInstance(Mode <> TAutoInstanceMode.TerminateIfOtherExist);
   if not HasOtherInstance then
@@ -222,36 +239,38 @@ begin
 
   // Handle case of otuer window
   case Mode of
-    TerminateIfOtherExist: Halt;
-    TerminateAndFocusOther: begin
-      if HasAppInfo then begin
-        Info := GetAppInfo;
-
-        SendMessage(Info.HWND, WM_SYSCOMMAND, SC_RESTORE, 0); // restore a minimize window
-        SetForegroundWindow(Info.HWND);
-        SetActiveWindow(Info.HWND);
-        SetWindowPos(Info.HWND, HWND_TOP, 0, 0, 0, 0, SWP_SHOWWINDOW or SWP_NOMOVE or SWP_NOSIZE);
-        //redraw to prevent the window blank.
-        RedrawWindow(Info.HWND, nil, 0, RDW_FRAME or RDW_INVALIDATE or RDW_ALLCHILDREN );
-      end;
-      Halt;
+    TAutoInstanceMode.TerminateIfOtherExist: DoHalt;
+    TAutoInstanceMode.TerminateAndFocusOther: begin
+      BringOtherWindowToTopAuto;
+      DoHalt;
     end;
   end;
 end;
 
-procedure AutoTerminateIfOtherInstanceExists;
+procedure BringOtherWindowToTopAuto;
+var
+  Info: TAppSharedInfo;
 begin
-  // Lock
-  LockSemaphore;
+  if HasAppInfo then begin
+    Info := GetAppInfo;
 
-  // Halt
-  if SemaforRefused then
-    Halt( HaltResultCode );
+    SendMessage(Info.HWND, WM_SYSCOMMAND, SC_RESTORE, 0); // restore a minimize window
+    SetForegroundWindow(Info.HWND);
+    SetActiveWindow(Info.HWND);
+    SetWindowPos(Info.HWND, HWND_TOP, 0, 0, 0, 0, SWP_SHOWWINDOW or SWP_NOMOVE or SWP_NOSIZE);
+    //redraw to prevent the window blank.
+    RedrawWindow(Info.HWND, nil, 0, RDW_FRAME or RDW_INVALIDATE or RDW_ALLCHILDREN );
+  end;
 end;
 
-procedure AutoFocusIfOtherInstanceExists;
+procedure SendOtherWindowMessageAuto(Msg: UINT; wParam: WPARAM; lParam: LPARAM);
+var
+  Info: TAppSharedInfo;
 begin
-
+  if HasAppInfo then begin
+    Info := GetAppInfo;
+    SendMessage(Info.HWND, Msg, WPARAM, wParam);
+  end;
 end;
 
 initialization

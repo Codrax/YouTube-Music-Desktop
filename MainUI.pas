@@ -57,8 +57,8 @@ type
     ErrorPane: TPanel;
     Label1: TLabel;
     Label2: TLabel;
-    Button1: TButton;
-    Button2: TButton;
+    BtAct_Refresh: TButton;
+    BtAct_Reload: TButton;
     Panel1: TPanel;
     Label3: TLabel;
     Label4: TLabel;
@@ -99,10 +99,11 @@ type
     ActionPlayPause: TAction;
     ActionPrev: TAction;
     ActionNext: TAction;
-    TaskbarPeriodicUpdater: TTimer;
+    PeriodicUpdaterTask: TTimer;
     Image1: TImage;
     ic_play: TImage;
     ic_pause: TImage;
+    BtAct_Offline: TButton;
     procedure FormCreate(Sender: TObject);
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure TrayIconDblClick(Sender: TObject);
@@ -112,7 +113,7 @@ type
     procedure YourLibrary1Click(Sender: TObject);
     procedure Explore1Click(Sender: TObject);
     procedure Givefeedback1Click(Sender: TObject);
-    procedure Button1Click(Sender: TObject);
+    procedure BtAct_RefreshClick(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure DelayedUpdateCheckTimer(Sender: TObject);
     procedure Button4Click(Sender: TObject);
@@ -127,12 +128,13 @@ type
     procedure Button11Click(Sender: TObject);
     procedure Button12Click(Sender: TObject);
     procedure StartURLLoaderTimer(Sender: TObject);
-    procedure Button2Click(Sender: TObject);
+    procedure BtAct_ReloadClick(Sender: TObject);
     procedure Settings1Click(Sender: TObject);
     procedure ActionPlayPauseExecute(Sender: TObject);
     procedure ActionPrevExecute(Sender: TObject);
     procedure ActionNextExecute(Sender: TObject);
-    procedure TaskbarPeriodicUpdaterTimer(Sender: TObject);
+    procedure PeriodicUpdaterTaskTimer(Sender: TObject);
+    procedure BtAct_OfflineClick(Sender: TObject);
   protected
     procedure WMSysCommand(var Message: TWMSysCommand); message WM_SYSCOMMAND;
     procedure WMRestoreAppFromTray(var Message: TMessage); message WM_RESTOREAPPFROMTRAY;
@@ -150,8 +152,9 @@ type
     procedure MinimizeToTray;
     procedure RestoreFromTray;
 
-    // Taskbar
+    // Update procs
     procedure UpdateTaskbarButtons;
+    procedure UpdateNetworkState;
 
     // Window
     procedure CreateSystemMenu;
@@ -197,7 +200,7 @@ type
   end;
 
 const
-  VERSION: TVersion = (Major: 1; Minor: 2; Maintenance: 0);
+  VERSION: TVersion = (Major: 1; Minor: 2; Maintenance: 1);
   EXTENSIONS_VERSION: TVersion = (Major: 1; Minor: 1; Maintenance: 1); // change to re-install all extensions
 
   APP_NAME = 'YouTube Music Desktop';
@@ -251,6 +254,7 @@ var
 
   // App state
   CurrentState: string;
+  LastNetworkConnectedState: boolean = true;
 
 implementation
 
@@ -355,13 +359,22 @@ begin
   Browser.RemoveExtensionByName( Edit2.Text );
 end;
 
-procedure TMainForm.Button1Click(Sender: TObject);
+procedure TMainForm.BtAct_OfflineClick(Sender: TObject);
+begin
+  InitializeSite;
+
+  //
+  StartURL := HOME_URL;
+  StartURLLoader.Enabled := true;
+end;
+
+procedure TMainForm.BtAct_RefreshClick(Sender: TObject);
 begin
   // Re-fresh
   Browser.Refresh;
 end;
 
-procedure TMainForm.Button2Click(Sender: TObject);
+procedure TMainForm.BtAct_ReloadClick(Sender: TObject);
 begin
   // Re-load
   ReloadWebViewBase
@@ -650,7 +663,10 @@ begin
   // Init
   InitializeSite;
 
-  // URL
+  // Init - Updates
+  UpdateNetworkState;
+
+  // Start URL
   StartURL := HOME_URL;
   if Settings.Get<boolean>('general', 'continue-playback', true) then begin
     const URL = Settings.Get<string>('last-location', 'session', '');
@@ -659,6 +675,11 @@ begin
     if URL.StartsWith(YTMUSIC_BASE_URL) then
       StartURL := URL;
   end;
+
+  if not GetNetworkConnected then // offline mode
+    StartURL := HOME_URL;
+
+  // Begin loading
   StartURLLoader.Enabled := true;
 end;
 
@@ -729,10 +750,10 @@ end;
 function TMainForm.ReadKnownExtensions: TArray<string>;
 begin
   Result := [];
-  if TFile.Exists(AppData+'known-extensions.ini') then
+  if TFile.Exists(AppData+'known-extensions.txt') then
     with TStringList.Create do
       try
-        LoadFromFile(AppData+'known-extensions.ini');
+        LoadFromFile(AppData+'known-extensions.txt');
 
         for var I := 0 to Count-1 do
           Result := Result + [Strings[I]];
@@ -831,8 +852,8 @@ procedure TMainForm.DoPlayPause;
 begin
   Browser.ExecuteScript('document.getElementById(''play-pause-button'').click()');
 
-  // Taskbar update sooner
-  TaskbarPeriodicUpdater.Interval := 100;
+  // Sooner
+  PeriodicUpdaterTask.Interval := 100;
 end;
 
 procedure TMainForm.DoPrev;
@@ -882,15 +903,18 @@ begin
   end;
 end;
 
-procedure TMainForm.TaskbarPeriodicUpdaterTimer(Sender: TObject);
+procedure TMainForm.PeriodicUpdaterTaskTimer(Sender: TObject);
 begin
   if not Visible then Exit;
 
   // Reset interval
   TTimer(sender).Interval := 2000;
 
-  // Update
+  // Update taskbar
   UpdateTaskbarButtons;
+
+  // Check internet connectivity
+  UpdateNetworkState;
 end;
 
 procedure TMainForm.TrayIconDblClick(Sender: TObject);
@@ -899,6 +923,19 @@ begin
     RestoreFromTray
   else
     BringToTopAndFocusWindow(Handle);
+end;
+
+procedure TMainForm.UpdateNetworkState;
+begin
+  const State = GetNetworkConnected;
+  if State <> LastNetworkConnectedState then begin
+    if State then
+      Caption := APP_NAME
+    else
+      Caption := APP_NAME + ' (Offline)';
+
+    LastNetworkConnectedState := State;
+  end;
 end;
 
 procedure TMainForm.UpdateTaskbarButtons;
@@ -985,7 +1022,7 @@ begin
       for var S in AList do
         Add(S);
 
-      SaveToFile(AppData+'known-extensions.ini');
+      SaveToFile(AppData+'known-extensions.txt');
     finally
       Free;
     end;

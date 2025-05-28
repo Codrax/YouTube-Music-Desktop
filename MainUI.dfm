@@ -5,13 +5,14 @@ object MainForm: TMainForm
   ClientHeight = 662
   ClientWidth = 1184
   Color = clBlack
-  Constraints.MinHeight = 400
+  Constraints.MinHeight = 500
   Constraints.MinWidth = 400
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWhite
   Font.Height = -16
   Font.Name = 'Segoe UI'
   Font.Style = []
+  KeyPreview = True
   Position = poDesigned
   OnCloseQuery = FormCloseQuery
   OnCreate = FormCreate
@@ -7235,7 +7236,7 @@ object MainForm: TMainForm
       Proportional = True
       ExplicitTop = -6
     end
-    object Button1: TButton
+    object BtAct_Refresh: TButton
       AlignWithMargins = True
       Left = 3
       Top = 163
@@ -7247,12 +7248,12 @@ object MainForm: TMainForm
       CommandLinkHint = 'Refresh the currently shown page'
       Style = bsCommandLink
       TabOrder = 0
-      OnClick = Button1Click
+      OnClick = BtAct_RefreshClick
     end
-    object Button2: TButton
+    object BtAct_Reload: TButton
       AlignWithMargins = True
       Left = 3
-      Top = 231
+      Top = 299
       Width = 733
       Height = 50
       Margins.Top = 15
@@ -7260,8 +7261,8 @@ object MainForm: TMainForm
       Caption = 'Re-load this web-view'
       CommandLinkHint = 'Re-load the entire web view'
       Style = bsCommandLink
-      TabOrder = 1
-      OnClick = Button2Click
+      TabOrder = 2
+      OnClick = BtAct_ReloadClick
     end
     object Panel1: TPanel
       Left = 0
@@ -7274,7 +7275,7 @@ object MainForm: TMainForm
       ParentBackground = False
       ParentColor = True
       ShowCaption = False
-      TabOrder = 2
+      TabOrder = 3
       object Label3: TLabel
         Left = 0
         Top = 0
@@ -7307,6 +7308,20 @@ object MainForm: TMainForm
         WordWrap = True
         ExplicitWidth = 163
       end
+    end
+    object BtAct_Offline: TButton
+      AlignWithMargins = True
+      Left = 3
+      Top = 231
+      Width = 733
+      Height = 50
+      Margins.Top = 15
+      Align = alTop
+      Caption = 'Try to enter offline mode'
+      CommandLinkHint = 'Access your downloads offline'
+      Style = bsCommandLink
+      TabOrder = 1
+      OnClick = BtAct_OfflineClick
     end
   end
   object DebugPanel: TPanel
@@ -17456,9 +17471,9 @@ object MainForm: TMainForm
       OnExecute = ActionNextExecute
     end
   end
-  object TaskbarPeriodicUpdater: TTimer
-    Interval = 3000
-    OnTimer = TaskbarPeriodicUpdaterTimer
+  object PeriodicUpdaterTask: TTimer
+    Interval = 2000
+    OnTimer = PeriodicUpdaterTaskTimer
     Left = 969
     Top = 242
   end

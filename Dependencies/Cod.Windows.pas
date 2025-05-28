@@ -101,6 +101,7 @@ type
     function GetProcessID: TProcessID;
 
     // Children
+    function GetParentWindow: HWND;
     function GetChildWindows: TArray<HWND>;
   end;
 
@@ -1254,6 +1255,11 @@ end;
 function THWNDHelper.GetClientRect: TRect;
 begin
   Winapi.Windows.GetClientRect(Self, Result);
+end;
+
+function THWNDHelper.GetParentWindow: HWND;
+begin
+  Result := GetWindowLong(Self, GWL_HWNDPARENT);
 end;
 
 function THWNDHelper.GetProcessID: TProcessID;

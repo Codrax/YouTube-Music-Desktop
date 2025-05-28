@@ -75,9 +75,8 @@ interface
   function HasParameter(Value: string): boolean; overload;
   ///  <summary> Get value of the following param of the requested value </summary>
   function GetParameterValue(Value: string): string; overload;
-  {$IFDEF POSIX}
   ///  <summary>
-  ///    Check for a single char Unix parameter, return index position
+  ///    Check for a single char parameter, return index position
   ///  </summary>
   function FindParameter(Value: char): integer; overload;
   ///  <summary> Check for a single char Unix parameter </summary>
@@ -92,7 +91,6 @@ interface
   function HasParameter(Value: string; AltChar: char): boolean; overload;
   ///  <summary> Gets the unix parameter, than returns the value </summary>
   function GetParameterValue(Value: string; AltChar: char): string; overload;
-  {$ENDIF}
 
   { Objects }
   procedure CopyObject(ObjFrom, ObjTo: TObject);
@@ -107,7 +105,9 @@ interface
   { Procedures }
   /// Usage:
   ///  HookMethod(@TClass.ProcInitialFunc, @TClass.ProcNewFunc);
+  {$IFDEF MSWINDOWS}
   procedure HookMethod(OldProc, NewProc: Pointer);
+  {$ENDIF}
 
   { File Associations }
   {$IFDEF MSWINDOWS}
@@ -173,9 +173,7 @@ interface
 
 const
   PARAM_PREFIX = {$IFDEF MSWINDOWS}'-'{$ELSE}'--'{$ENDIF};
-  {$IFDEF POSIX}
   PARAM_PREFIX_CHAR = '-';
-  {$ENDIF}
 
 implementation
 
@@ -396,6 +394,7 @@ begin
     raise Exception.Create(Message);
 end;
 
+{$IFDEF MSWINDOWS}
 procedure HookMethod(OldProc, NewProc: Pointer);
 const
   JMP_REL32 = $E9;
@@ -416,6 +415,7 @@ begin
   // Restore memory protection
   VirtualProtect(OldProc, 5, dwOldProtect, @dwOldProtect);
 end;
+{$ENDIF}
 
 {$IFDEF MSWINDOWS}
 procedure RegisterFileType(FileExt, FileTypeDescription,
@@ -984,7 +984,6 @@ begin
   Result := GetParameter(Index+1);
 end;
 
-{$IFDEF POSIX}
 function FindParameter(Value: char): integer;
 var
   S: string;
@@ -995,7 +994,7 @@ begin
       S := GetParameter(I);
       if (Length(S) < Length(PARAM_PREFIX_CHAR)+1)
         or (Copy(S, 1, Length(PARAM_PREFIX_CHAR)) <> PARAM_PREFIX_CHAR)
-        or (Copy(S, 1, Length(PARAM_PREFIX)) = PARAM_PREFIX) then
+        {$IFNDEF MSWINDOWS}or (Copy(S, 1, Length(PARAM_PREFIX)) = PARAM_PREFIX){$ENDIF} then
         Continue;
 
       // Remove prefix
@@ -1036,7 +1035,6 @@ begin
   const Index = FindParameter( Value, AltChar );
   Result := GetParameter(Index+1);
 end;
-{$ENDIF}
 
 procedure CopyObject(ObjFrom, ObjTo: TObject);
   var

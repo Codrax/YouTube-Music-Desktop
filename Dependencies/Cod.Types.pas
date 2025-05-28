@@ -297,8 +297,12 @@ procedure FloodFill(var Grid: TArray<TArray<boolean>>; Start: TPoint; NewValue: 
 
 { Points }
 function SetPositionAroundPoint(Point: TPoint; Center: TPoint; degree: real; customradius: real = -1): TPoint;
-function PointAroundCenter(Center: TPoint; degree: real; customradius: real = -1): TPoint;
-function RotatePointAroundPoint(APoint: TPoint; ACenter: TPoint; ARotateDegree: real; ACustomRadius: real = -1): TPoint;
+function PointAroundCenter(Center: TPoint; degree: real; radius: real = -1): TPoint;
+
+function RotatePointAroundPointRad(APoint: TPointF; ACenter: TPointF; ARotateRadians: real; ACustomRadius: real = -1): TPointF;  overload;
+function RotatePointAroundPoint(APoint: TPointF; ACenter: TPointF; ARotateDegrees: real; ACustomRadius: real): TPointF; overload;
+function RotatePointAroundPointRad(APoint: TPoint; ACenter: TPoint; ARotateRadians: real; ACustomRadius: real = -1): TPoint;  overload;
+function RotatePointAroundPoint(APoint: TPoint; ACenter: TPoint; ARotateDegrees: real; ACustomRadius: real = -1): TPoint;  overload;
 function PointAngle(APoint: TPoint; ACenter: TPoint; offset: integer = 0): integer;
 
 // Conversion Functions
@@ -314,8 +318,8 @@ function DecToHex(Dec: int64): string;
 function HexToDec(Hex: string): int64;
 
 { Arrays }
-function InArray(Value: integer; arrayitem: array of integer): integer; overload;
-function InArray(Value: string; arrayitem: array of string): integer; overload;
+function InArray(Value: integer; ArrayList: array of integer): integer; overload;
+function InArray(Value: string; ArrayList: array of string): integer; overload;
 procedure ShuffleArray(var arr: TArray<Integer>);
 procedure ArrayAdd(Data: string; var AArray: TArray<string>; CheckDuplicate: boolean = false);
 procedure ArrayRemove(Data: string; var AArray: TArray<string>; RemoveAll: boolean = true);
@@ -684,36 +688,34 @@ begin
   Result.Y := round( Center.Y + r * dcos );
 end;
 
-function PointAroundCenter(Center: TPoint; degree: real; customradius: real = -1): TPoint;
+function PointAroundCenter(Center: TPoint; degree: real; radius: real): TPoint;
 var
-  r, dg, dsin, dcos: real;
+  dg, dsin, dcos: real;
 begin
   dg := (degree * pi / 180);
 
   dsin := sin(dg);
   dcos := cos(dg);
 
-  r := customradius;
-
   // Apply New Properties
-  Result.X := round( Center.X + r * dsin );
-  Result.Y := round( Center.Y + r * dcos );
+  Result.X := round( Center.X + radius * dsin );
+  Result.Y := round( Center.Y + radius * dcos );
 end;
 
-function RotatePointAroundPoint(APoint: TPoint; ACenter: TPoint; ARotateDegree: real; ACustomRadius: real): TPoint;
+function RotatePointAroundPointRad(APoint: TPointF; ACenter: TPointF; ARotateRadians: real; ACustomRadius: real = -1): TPointF;
 var
-  r, dg, cosa, sina, ncos, nsin, dsin, dcos: real;
+  r, cosa, sina, ncos, nsin, dsin, dcos: real;
 begin
-  dg := (ARotateDegree * pi / 180);
+  dsin := sin(ARotateRadians);
+  dcos := cos(ARotateRadians);
 
-  dsin := sin(dg);
-  dcos := cos(dg);
-
+  // Calc distance
   if ACustomRadius = -1 then
     r := ACenter.Distance(APoint)
   else
     r := ACustomRadius;
 
+  // Rotate
   if r <> 0 then
     begin
       cosa := (APoint.X - ACenter.X) / r;
@@ -727,7 +729,57 @@ begin
       // Apply New Properties
       Result.X := round( ACenter.X + r * ncos );
       Result.Y := round( ACenter.Y + r * nsin );
-    end;
+    end
+  else
+    // No rotation needed; point is at center
+    Result := APoint;
+end;
+
+function RotatePointAroundPoint(APoint: TPointF; ACenter: TPointF; ARotateDegrees: real; ACustomRadius: real): TPointF;
+begin
+  Result := RotatePointAroundPointRad(APoint, ACenter,
+    (ARotateDegrees * pi / 180),
+    ACustomRadius);
+end;
+
+function RotatePointAroundPointRad(APoint: TPoint; ACenter: TPoint; ARotateRadians: real; ACustomRadius: real = -1): TPoint;
+var
+  r, cosa, sina, ncos, nsin, dsin, dcos: real;
+begin
+  dsin := sin(ARotateRadians);
+  dcos := cos(ARotateRadians);
+
+  // Calc distance
+  if ACustomRadius = -1 then
+    r := ACenter.Distance(APoint)
+  else
+    r := ACustomRadius;
+
+  // Rotate
+  if r <> 0 then
+    begin
+      cosa := (APoint.X - ACenter.X) / r;
+      sina := (APoint.Y - ACenter.Y) / r;
+
+
+      nsin := sina * dcos + dsin * cosa;
+      ncos := cosa * dcos - sina * dsin;
+
+
+      // Apply New Properties
+      Result.X := round( ACenter.X + r * ncos );
+      Result.Y := round( ACenter.Y + r * nsin );
+    end
+  else
+    // No rotation needed; point is at center
+    Result := APoint;
+end;
+
+function RotatePointAroundPoint(APoint: TPoint; ACenter: TPoint; ARotateDegrees: real; ACustomRadius: real): TPoint;
+begin
+  Result := RotatePointAroundPointRad(APoint, ACenter,
+    (ARotateDegrees * pi / 180),
+    ACustomRadius);
 end;
 
 function PointAngle(APoint: TPoint; ACenter: TPoint; offset: integer): integer;
@@ -816,26 +868,26 @@ begin
   Result := StrToInt64('$' + Hex);
 end;
 
-function InArray(Value: integer; arrayitem: array of integer): integer; overload;
+function InArray(Value: integer; ArrayList: array of integer): integer; overload;
 var
   I: integer;
 begin
   Result := -1;
-  for I := 0 to length(arrayitem) - 1 do
-    if arrayitem[I] = Value then
+  for I := 0 to length(ArrayList) - 1 do
+    if ArrayList[I] = Value then
     begin
       Result := I;
       Break;
     end;
 end;
 
-function InArray(Value: string; arrayitem: array of string): integer; overload;
+function InArray(Value: string; ArrayList: array of string): integer; overload;
 var
   I: integer;
 begin
   Result := -1;
-  for I := 0 to length(arrayitem) - 1 do
-    if arrayitem[I] = Value then
+  for I := 0 to length(ArrayList) - 1 do
+    if ArrayList[I] = Value then
     begin
       Result := I;
       Break;

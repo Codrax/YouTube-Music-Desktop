@@ -69,7 +69,7 @@ function StrPos(SubString: string; MainString: string; index: integer = 1; offse
 function InString(SubString, MainString: string; Flags: TStringFindFlags = []): boolean;
 
 // Search Utilities
-function ClearStringSimbols(MainString: string): string;
+function ClearStringSymbols(MainString: string): string;
 /// <summary> Return the first string which is not Empty. </summary>
 function StringNullLess(Strings: TArray<string>): string; overload;
 /// <summary> Return the first string which is not Empty. </summary>
@@ -77,7 +77,7 @@ function StringNullLess(First, Second: string): string; overload;
 
 // String comparison
 function DamerauLevenshteinDistance(const Str1, Str2: String): Integer;
-function StringSimilarityRatio(const Str1, Str2: String; IgnoreCase: Boolean): Double;
+function StringSimilarityRatio(const Str1, Str2: String; IgnoreCase: Boolean): Double; // 0-1
 
 // String List
 procedure InsertStListInStList(insertindex: integer; SubStrList: TStringList; var ParentStringList: TStringList);
@@ -510,7 +510,7 @@ begin
     end;
 end;
 
-function ClearStringSimbols(MainString: string): string;
+function ClearStringSymbols(MainString: string): string;
 var
   I: Integer;
 begin

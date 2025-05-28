@@ -313,7 +313,7 @@ object SettingsForm: TSettingsForm
     Caption = 'Official site'
     CommandLinkHint = 'Visit the official site'
     Style = bsCommandLink
-    TabOrder = 10
+    TabOrder = 11
     OnClick = Button2Click
   end
   object Button3: TButton
@@ -324,7 +324,7 @@ object SettingsForm: TSettingsForm
     Caption = 'Give feedback'
     CommandLinkHint = 'Leave feeedback on the repository'
     Style = bsCommandLink
-    TabOrder = 11
+    TabOrder = 12
     OnClick = Button3Click
   end
   object Panel2: TPanel
@@ -335,7 +335,7 @@ object SettingsForm: TSettingsForm
     BevelOuter = bvNone
     Color = 1381653
     ParentBackground = False
-    TabOrder = 12
+    TabOrder = 13
   end
   object CheckBox4: TCheckBox
     Left = 23
@@ -367,7 +367,7 @@ object SettingsForm: TSettingsForm
     Font.Style = []
     ParentFont = False
     State = cbChecked
-    TabOrder = 5
+    TabOrder = 6
     StyleElements = []
     OnClick = CheckBox5Click
   end
@@ -378,7 +378,7 @@ object SettingsForm: TSettingsForm
     Height = 40
     Caption = 'Check for updates now'
     Style = bsCommandLink
-    TabOrder = 6
+    TabOrder = 7
     OnClick = Button4Click
   end
   object ListBox1: TListBox
@@ -405,7 +405,7 @@ object SettingsForm: TSettingsForm
       'By Kris T')
     ParentColor = True
     ParentFont = False
-    TabOrder = 7
+    TabOrder = 8
   end
   object Panel3: TPanel
     Left = 640
@@ -415,7 +415,7 @@ object SettingsForm: TSettingsForm
     BevelOuter = bvNone
     Color = 1381653
     ParentBackground = False
-    TabOrder = 13
+    TabOrder = 14
   end
   object Button5: TButton
     Left = 352
@@ -425,7 +425,7 @@ object SettingsForm: TSettingsForm
     Caption = 'Remove all extensions'
     CommandLinkHint = 'Uninstall all extensions added to the web view'
     Style = bsCommandLink
-    TabOrder = 8
+    TabOrder = 9
     WordWrap = True
     OnClick = Button5Click
   end
@@ -439,7 +439,7 @@ object SettingsForm: TSettingsForm
       'Reset the application'#39's settings to default and delete all data.' +
       ' This will log you out and clear any preferences'
     Style = bsCommandLink
-    TabOrder = 9
+    TabOrder = 10
     WordWrap = True
     OnClick = Button6Click
   end
@@ -452,7 +452,7 @@ object SettingsForm: TSettingsForm
     Min = 50
     Frequency = 50
     Position = 50
-    TabOrder = 14
+    TabOrder = 5
     OnChange = TrackBar1Change
   end
 end
