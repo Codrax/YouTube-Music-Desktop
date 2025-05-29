@@ -3,7 +3,7 @@ object SettingsForm: TSettingsForm
   Top = 0
   BorderStyle = bsDialog
   Caption = 'Settings'
-  ClientHeight = 561
+  ClientHeight = 611
   ClientWidth = 944
   Color = clBlack
   Font.Charset = DEFAULT_CHARSET
@@ -230,7 +230,7 @@ object SettingsForm: TSettingsForm
   end
   object Panel1: TPanel
     Left = 0
-    Top = 501
+    Top = 551
     Width = 944
     Height = 60
     Align = alBottom
@@ -238,6 +238,7 @@ object SettingsForm: TSettingsForm
     Color = 1381653
     ParentBackground = False
     TabOrder = 0
+    ExplicitTop = 501
     object Button1: TButton
       AlignWithMargins = True
       Left = 791
@@ -331,7 +332,7 @@ object SettingsForm: TSettingsForm
     Left = 320
     Top = 80
     Width = 2
-    Height = 400
+    Height = 450
     BevelOuter = bvNone
     Color = 1381653
     ParentBackground = False
@@ -411,7 +412,7 @@ object SettingsForm: TSettingsForm
     Left = 640
     Top = 80
     Width = 2
-    Height = 400
+    Height = 450
     BevelOuter = bvNone
     Color = 1381653
     ParentBackground = False
@@ -454,5 +455,17 @@ object SettingsForm: TSettingsForm
     Position = 50
     TabOrder = 5
     OnChange = TrackBar1Change
+  end
+  object Button7: TButton
+    Left = 352
+    Top = 451
+    Width = 249
+    Height = 70
+    Caption = 'Browse extensions...'
+    CommandLinkHint = 'Open the directory of extensions to install'
+    Style = bsCommandLink
+    TabOrder = 15
+    WordWrap = True
+    OnClick = Button7Click
   end
 end

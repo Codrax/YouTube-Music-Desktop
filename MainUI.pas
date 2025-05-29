@@ -795,6 +795,9 @@ end;
 
 procedure TMainForm.Settings1Click(Sender: TObject);
 begin
+  RestoreFromTray;
+
+  // Settings
   OpenSettingsForm;
 end;
 

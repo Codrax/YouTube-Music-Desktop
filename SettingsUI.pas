@@ -44,6 +44,7 @@ type
     Label18: TLabel;
     TrackBar1: TTrackBar;
     Label19: TLabel;
+    Button7: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
@@ -56,9 +57,12 @@ type
     procedure Button5Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
     procedure TrackBar1Change(Sender: TObject);
+    procedure Button7Click(Sender: TObject);
   private
     { Private declarations }
     procedure UpdateStartupFile;
+
+    function GetStartupLinkFilePath: string;
   public
     { Public declarations }
   end;
@@ -122,6 +126,16 @@ begin
   Halt;
 end;
 
+procedure TSettingsForm.Button7Click(Sender: TObject);
+begin
+  if not TDirectory.Exists(DIR_EXT) then begin
+    MessageDLG('The extensions directroy does not exist.'#13+AppDir+DIR_EXT, mtWarning, [mbOk], 0);
+    Exit;
+  end;
+
+  ShellRun(DIR_EXT, true);
+end;
+
 procedure TSettingsForm.CheckBox1Click(Sender: TObject);
 begin
   // File
@@ -171,11 +185,18 @@ begin
   DarkModeApplyToWindow(Handle, true);
 
   // Load settings
+  CheckBox1.Checked := TFile.Exists(GetStartupLinkFilePath);
   CheckBox2.Checked := Settings.Get<boolean>('start-minimized', 'startup', true);
   CheckBox3.Checked := Settings.Get<boolean>('minimize-to-tray', 'general', true);
   CheckBox4.Checked := Settings.Get<boolean>('general', 'continue-playback', true);
   CheckBox5.Checked := Settings.Get<boolean>('app', 'check-updates', true);
   TrackBar1.Position := round(Settings.Get<double>('zoom', 'accessibility', 1)*100);
+end;
+
+function TSettingsForm.GetStartupLinkFilePath: string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetUserShellLocation(TUserShellLocation.Startup))
+    + APP_NAME + '.lnk'
 end;
 
 procedure TSettingsForm.TrackBar1Change(Sender: TObject);
@@ -196,8 +217,7 @@ var
   FilePath: string;
   Params: string;
 begin
-  FilePath := IncludeTrailingPathDelimiter(GetUserShellLocation(TUserShellLocation.Startup))
-    + APP_NAME + '.lnk';
+  FilePath := GetStartupLinkFilePath;
 
   // Check needs exist
   if not CheckBox1.Checked then begin
