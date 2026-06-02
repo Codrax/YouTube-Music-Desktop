@@ -1,7 +1,6 @@
 object MainForm: TMainForm
   Left = 0
   Top = 0
-  Caption = 'YouTube Music Desktop'
   ClientHeight = 662
   ClientWidth = 1184
   Color = clBlack
@@ -7593,7 +7592,6 @@ object MainForm: TMainForm
     end
   end
   object TrayIcon: TTrayIcon
-    Hint = 'YouTube Music Desktop'
     PopupMenu = TrayMenu
     OnDblClick = TrayIconDblClick
     Left = 352

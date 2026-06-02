@@ -27,7 +27,7 @@ type
     procedure OpenDevTools;
 
     // Scripts
-    procedure ExecuteScript(const JavaScript: string; Callback: TScriptCallback); overload;
+    procedure ExecuteScript(const JavaScript: string; Callback: TScriptCallback=nil); overload;
     function ExecuteScriptAwait(const JavaScript: string; out Output: string; Timeout: cardinal=1000): boolean; overload;
 
   public
@@ -200,6 +200,7 @@ const
   APP_NAME = 'YouTube Music Desktop';
 
   DEVELOPER_URL = 'https://www.codrutsoft.com/';
+  SUPPORT_URL = 'https://go.codrutsoft.com/support/';
   FEEDBACK_URL = 'https://github.com/Codrax/YouTube-Music-Desktop';
   WEBSITE_APP_LINK = 'https://www.codrutsoft.com/apps/youtube-music-desktop/';
 
@@ -608,6 +609,9 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
+  Caption := APP_NAME;
+  Hint := APP_NAME;
+
   // Dirs
   AppData := GetPathInAppData(APP_NAME, TAppDataType.Roaming, true);
   AppDir := IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
@@ -897,7 +901,7 @@ begin
   end;
 
   // Alert user
-  if MessageDLG('There is a new version of YouTube Music Desktop avalabile on the server. Do you wish to download It now? The app will close to update',
+  if MessageDLG('There is a new version of '+APP_NAME+' avalabile on the server. Do you wish to download It now? The app will close to update',
     mtWarning, [mbYes, mbNo], 0) <> mrYes then
     Exit;
 
@@ -1079,7 +1083,8 @@ begin
         begin
           Result := S_OK;
 
-          Callback(ErrorCode, string(ResultObjectAsJson));
+          if Assigned(Callback) then
+            Callback(ErrorCode, string(ResultObjectAsJson));
         end));
 end;
 
@@ -1130,7 +1135,8 @@ end;
 
 procedure TMainBrowser.OpenDevTools;
 begin
-  DefaultInterface.OpenDevToolsWindow;
+  if Assigned(DefaultInterface) then
+    DefaultInterface.OpenDevToolsWindow;
 end;
 
 initialization
