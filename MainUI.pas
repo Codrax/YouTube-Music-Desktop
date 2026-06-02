@@ -13,17 +13,10 @@ uses
   System.ImageList, Vcl.ImgList, System.Generics.Collections,
   Cod.CodrutSoftware.API.Update;
 
-const IID_ICoreWebView2EnvironmentOptions6: TGUID = '{57D29CC3-C84F-42A0-B0E2-EFFBD5E179DE}';
-
 const
     WM_RESTOREAPPFROMTRAY = WM_USER + 100;
 
 type
-  ICoreWebView2EnvironmentOptions6 = interface(IUnknown)
-    function Get_AreBrowserExtensionsEnabled(out IsVisible: Integer): HResult; stdcall;
-    function Set_AreBrowserExtensionsEnabled(IsVisible: Integer): HResult; stdcall;
-  end;
-
   // Define custom class
   TMainBrowser = class(TCustomEdgeBrowser)
   private
