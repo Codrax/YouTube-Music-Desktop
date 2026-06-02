@@ -1614,7 +1614,6 @@ function TCustomEdgeBrowser.GetAllExtensionIDs: TArray<string>;
 var
   EndCallback: boolean;
   AResult: ^TArray<string>;
-  Status: HRESULT;
 begin
   Result := [];
   if FCoreWebViewProfile7 = nil then
@@ -1622,7 +1621,7 @@ begin
   AResult := @Result;
 
   EndCallback := false;
-  Status := FCoreWebViewProfile7.GetBrowserExtensions(Callback<HResult, ICoreWebView2BrowserExtensionList>.CreateAs<ICoreWebView2ProfileGetBrowserExtensionsCompletedHandler>(
+  FCoreWebViewProfile7.GetBrowserExtensions(Callback<HResult, ICoreWebView2BrowserExtensionList>.CreateAs<ICoreWebView2ProfileGetBrowserExtensionsCompletedHandler>(
     function(ErrorCode: HResult; List: ICoreWebView2BrowserExtensionList): HResult stdcall
     begin
       Result := S_OK;
