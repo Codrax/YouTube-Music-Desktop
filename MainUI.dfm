@@ -7556,9 +7556,9 @@ object MainForm: TMainForm
       end
     end
     object Button3: TButton
-      Left = 16
+      Left = 12
       Top = 399
-      Width = 202
+      Width = 206
       Height = 25
       Caption = 'List extensions'
       TabOrder = 11

@@ -42,7 +42,7 @@ object SettingsForm: TSettingsForm
   end
   object Label3: TLabel
     Left = 23
-    Top = 186
+    Top = 193
     Width = 46
     Height = 17
     Caption = 'General'
@@ -64,7 +64,7 @@ object SettingsForm: TSettingsForm
   end
   object Label5: TLabel
     Left = 64
-    Top = 151
+    Top = 143
     Width = 250
     Height = 19
     AutoSize = False
@@ -154,8 +154,8 @@ object SettingsForm: TSettingsForm
     ParentFont = False
   end
   object Label13: TLabel
-    Left = 24
-    Top = 384
+    Left = 23
+    Top = 407
     Width = 68
     Height = 17
     Caption = 'Application'
@@ -167,8 +167,8 @@ object SettingsForm: TSettingsForm
     ParentFont = False
   end
   object Label14: TLabel
-    Left = 48
-    Top = 406
+    Left = 47
+    Top = 429
     Width = 250
     Height = 19
     AutoSize = False
@@ -203,7 +203,7 @@ object SettingsForm: TSettingsForm
   end
   object Label17: TLabel
     Left = 23
-    Top = 287
+    Top = 295
     Width = 72
     Height = 17
     Caption = 'Accessibility'
@@ -216,7 +216,7 @@ object SettingsForm: TSettingsForm
   end
   object Label18: TLabel
     Left = 24
-    Top = 310
+    Top = 318
     Width = 32
     Height = 15
     Caption = 'Zoom'
@@ -228,6 +228,19 @@ object SettingsForm: TSettingsForm
     Height = 15
     Caption = '100%'
   end
+  object Label20: TLabel
+    Left = 664
+    Top = 384
+    Width = 28
+    Height = 17
+    Caption = 'Help'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWhite
+    Font.Height = -13
+    Font.Name = 'Segoe UI Semibold'
+    Font.Style = []
+    ParentFont = False
+  end
   object Panel1: TPanel
     Left = 0
     Top = 551
@@ -238,7 +251,6 @@ object SettingsForm: TSettingsForm
     Color = 1381653
     ParentBackground = False
     TabOrder = 0
-    ExplicitTop = 501
     object Button1: TButton
       AlignWithMargins = True
       Left = 791
@@ -273,8 +285,8 @@ object SettingsForm: TSettingsForm
     OnClick = CheckBox1Click
   end
   object CheckBox2: TCheckBox
-    Left = 40
-    Top = 152
+    Left = 39
+    Top = 143
     Width = 275
     Height = 18
     Checked = True
@@ -356,8 +368,8 @@ object SettingsForm: TSettingsForm
     OnClick = CheckBox4Click
   end
   object CheckBox5: TCheckBox
-    Left = 24
-    Top = 407
+    Left = 23
+    Top = 430
     Width = 275
     Height = 18
     Checked = True
@@ -373,8 +385,8 @@ object SettingsForm: TSettingsForm
     OnClick = CheckBox5Click
   end
   object Button4: TButton
-    Left = 24
-    Top = 437
+    Left = 23
+    Top = 460
     Width = 275
     Height = 40
     Caption = 'Check for updates now'
@@ -386,24 +398,24 @@ object SettingsForm: TSettingsForm
     Left = 352
     Top = 127
     Width = 273
-    Height = 130
+    Height = 115
     TabStop = False
     BevelInner = bvNone
     BevelOuter = bvNone
     BorderStyle = bsNone
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWhite
-    Font.Height = -16
+    Font.Height = -13
     Font.Name = 'Segoe UI'
     Font.Style = []
-    ItemHeight = 21
+    ItemHeight = 17
     Items.Strings = (
-      'uBlock Origin'
-      'Adblocker'
+      'uBlock Origin (Adblocker)'
       ''
       'ThemeSong for YouTube Music'#8482
-      'Improved Visuals'
-      'By Kris T')
+      '(Improved Visuals) By Kris T'
+      ''
+      'YouTube Non-Stop (Disable continue playing)')
     ParentColor = True
     ParentFont = False
     TabOrder = 8
@@ -446,7 +458,7 @@ object SettingsForm: TSettingsForm
   end
   object TrackBar1: TTrackBar
     Left = 24
-    Top = 333
+    Top = 341
     Width = 233
     Height = 28
     Max = 400
@@ -462,10 +474,22 @@ object SettingsForm: TSettingsForm
     Width = 249
     Height = 70
     Caption = 'Browse extensions...'
-    CommandLinkHint = 'Open the directory of extensions to install'
+    CommandLinkHint = 'Open the directory of extensions to install a new extension'
     Style = bsCommandLink
     TabOrder = 15
     WordWrap = True
     OnClick = Button7Click
+  end
+  object Button8: TButton
+    Left = 664
+    Top = 407
+    Width = 249
+    Height = 82
+    Caption = 'How do I install a new extension on this app?'
+    CommandLinkHint = 'Click here to learn'
+    Style = bsCommandLink
+    TabOrder = 16
+    WordWrap = True
+    OnClick = Button8Click
   end
 end

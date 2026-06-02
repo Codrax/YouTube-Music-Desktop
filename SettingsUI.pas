@@ -45,6 +45,8 @@ type
     TrackBar1: TTrackBar;
     Label19: TLabel;
     Button7: TButton;
+    Button8: TButton;
+    Label20: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
@@ -58,6 +60,7 @@ type
     procedure Button6Click(Sender: TObject);
     procedure TrackBar1Change(Sender: TObject);
     procedure Button7Click(Sender: TObject);
+    procedure Button8Click(Sender: TObject);
   private
     { Private declarations }
     procedure UpdateStartupFile;
@@ -134,6 +137,11 @@ begin
   end;
 
   ShellRun(DIR_EXT, true);
+end;
+
+procedure TSettingsForm.Button8Click(Sender: TObject);
+begin
+  ShellRun('https://github.com/Codrax/YouTube-Music-Desktop/wiki/Installing-extensions', true);
 end;
 
 procedure TSettingsForm.CheckBox1Click(Sender: TObject);

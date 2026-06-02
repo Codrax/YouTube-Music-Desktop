@@ -10,7 +10,8 @@ uses
   Cod.IniSettings, Winapi.ShlObj, DateUtils, Cod.Version, Cod.StringUtils,
   SettingsUI, UITypes, IOUtils, System.SyncObjs, System.TimeSpan, JSON, Winapi.EdgeUtils,
   System.Win.TaskbarCore, Vcl.Taskbar, System.Actions, Vcl.ActnList,
-  System.ImageList, Vcl.ImgList, System.Generics.Collections;
+  System.ImageList, Vcl.ImgList, System.Generics.Collections,
+  Cod.CodrutSoftware.API.Update;
 
 const IID_ICoreWebView2EnvironmentOptions6: TGUID = '{57D29CC3-C84F-42A0-B0E2-EFFBD5E179DE}';
 
@@ -200,14 +201,16 @@ type
   end;
 
 const
-  VERSION: TVersion = (Major: 1; Minor: 2; Maintenance: 1);
-  EXTENSIONS_VERSION: TVersion = (Major: 1; Minor: 1; Maintenance: 1); // change to re-install all extensions
+  VERSION: TVersion = (Major: 1; Minor: 2; Maintenance: 3);
+  EXTENSIONS_VERSION: TVersion = (Major: 1; Minor: 1; Maintenance: 2); // change to re-install all extensions
 
   APP_NAME = 'YouTube Music Desktop';
 
   DEVELOPER_URL = 'https://www.codrutsoft.com/';
   FEEDBACK_URL = 'https://github.com/Codrax/YouTube-Music-Desktop';
   WEBSITE_APP_LINK = 'https://www.codrutsoft.com/apps/youtube-music-desktop/';
+
+  API_APP_NAME = 'youtube-music-desktop';
 
   APP_USER_MODEL_ID = 'com.codrutsoft.youtubemusicdesktop';
 
@@ -231,6 +234,9 @@ const
 
 var
   MainForm: TMainForm;
+
+  // Update
+  VersionCheck: TStandardVersionCheckerUpdateUrl;
 
   // System
   AppData: string;
@@ -598,7 +604,7 @@ begin
   end;
 
   // Save positions
-  FormPositionSettings(Self, AppData+'form-pos.ini', false);
+  SaveFormPositions(Self, AppData+'form-pos.ini');
 
   // Last location
   var LastURL: string; LastURL := '';
@@ -610,7 +616,7 @@ end;
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
   // Dirs
-  AppData := GetPathInAppData(APP_NAME, TAppDataType.Roaming);
+  AppData := GetPathInAppData(APP_NAME, TAppDataType.Roaming, true);
   AppDir := IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
 
   // UI
@@ -624,7 +630,7 @@ begin
   CreateSystemMenu;
 
   // Load form
-  FormPositionSettings(Self, AppData+'form-pos.ini', true);
+  LoadFormPositions(Self, AppData+'form-pos.ini');
 
   // Theme (must be after loading position)
   DarkModeApplyToWindow(Handle, true);
@@ -634,7 +640,7 @@ begin
     DebugPanel.BringToFront;
     DebugPanel.Show;
     DebugStat.Enabled := true;
-    Label15.Caption := VERSION.ToString(true);
+    Label15.Caption := VERSION.ToString;
   end else begin
     DebugPanel.Destroy;
     DebugStat.Destroy;
@@ -741,12 +747,23 @@ end;
 
 procedure TMainForm.OpenSettingsForm;
 begin
-  with TSettingsForm.Create(Self) do
+  if SettingsForm <> nil then begin
+    try
+      BringToTopAndFocusWindow(SettingsForm.Handle);
+    except
+    end;
+    Exit;
+  end;
+
+  SettingsForm := TSettingsForm.Create(Self);
+  with SettingsForm do
     try
       // Show
       ShowModal;
     finally
       Free;
+
+      SettingsForm := nil;
     end;
 end;
 
@@ -865,44 +882,53 @@ begin
 end;
 
 procedure TMainForm.DoUpdateCheck(NotifyStatus: boolean);
-var
-  Server: TVersion;
+procedure DoDownloadFailed;
+begin
+  if MessageDLG('The download failed. Open the website?', mtWarning, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  ShellRun(WEBSITE_APP_LINK, true);
+end;
 begin
   // Start update check
+  VersionCheck.Load;
+
+  if not VersionCheck.Loaded then
+    Exit; // failed
+
+  // New version?
+  if not VersionCheck.ServerVersion.NewerThan(VersionCheck.ClientVersion) then begin
+    if NotifyStatus then
+      MessageDLG('There are no new updates avalabile.', mtWarning, [mbOk], 0);
+    Exit;
+  end;
+
+  // Alert user
+  if MessageDLG('There is a new version of YouTube Music Desktop avalabile on the server. Do you wish to download It now? The app will close to update',
+    mtWarning, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  // Validate url
+  if VersionCheck.UpdateUrl = '' then begin
+    DoDownloadFailed;
+    Exit;
+  end;
+
+  // Start download
   try
-    Server.APILoad('youtube-music-desktop', VERSION);
+    const OutputFile = ReplaceWinPath(Format('%%TEMP%%\updateinstall_%S.exe', [
+      GenerateString(8, [TStrGenFlag.UppercaseLetters, TStrGenFlag.LowercaseLetters, TStrGenFlag.Numbers])
+      ]));
+    DownloadFile(VersionCheck.UpdateUrl, OutputFile);
 
-    if not Server.NewerThan(VERSION) then begin
-      if NotifyStatus then
-        MessageDLG('There are no new updates avalabile.', mtWarning, [mbOk], 0);
-      Exit;
-    end;
+    // Run
+    ShellRun( OutputFile, true, '-ad' );
 
-    // Alert user
-    if MessageDLG('There is a new version of YouTube Music Desktop avalabile on the server. Do you wish to download It now? The app will close to update', mtWarning, [mbYes, mbNo], 0) <> mrYes then
-      Exit;
-
-    // Start download
-    try
-      const DownloadLink = Server.GetDownloadLink();
-      const OutputFile = ReplaceWinPath(Format('%%TEMP%%\updateinstall_%S.exe', [
-        GenerateString(8, [TStrGenFlag.UppercaseLetters, TStrGenFlag.LowercaseLetters, TStrGenFlag.Numbers])
-        ]));
-      DownloadFile(DownloadLink, OutputFile);
-
-      // Run
-      ShellRun( OutputFile, true, '-ad' );
-
-      // Close
-      Application.Terminate;
-    except
-      if MessageDLG('The download failed. Open the website?', mtWarning, [mbYes, mbNo], 0) <> mrYes then
-        Exit;
-
-      ShellRun(WEBSITE_APP_LINK, true);
-    end;
+    // Close
+    Application.Terminate;
   except
-    // failure
+    DoDownloadFailed;
+    Exit;
   end;
 end;
 
@@ -1047,7 +1073,7 @@ begin
   OnCreateWebViewCompleted := HandleCreateWebViewCompleted;
 
   // Args
-  AdditionalBrowserArguments := '--autoplay-policy=no-user-gesture-required';
+  AdditionalBrowserArguments := '--autoplay-policy=no-user-gesture-required'; // tried:  --disable-features=MediaControls,GlobalMediaControls - does not work!!
 end;
 
 procedure TMainBrowser.ExecuteScript(const JavaScript: string;
@@ -1114,4 +1140,8 @@ begin
   DefaultInterface.OpenDevToolsWindow;
 end;
 
+initialization
+  VersionCheck := TStandardVersionCheckerUpdateUrl.Create(API_APP_NAME, VERSION);
+finalization
+  VersionCheck.Free;
 end.
