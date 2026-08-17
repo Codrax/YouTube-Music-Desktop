@@ -15,9 +15,6 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, Vcl.Forms, SysUtils;
 
-const
-  USE_DEFAULT_EXIT_CODE = integer.MinValue;
-
 type
   TAutoInstanceMode = (TerminateIfOtherExist, TerminateAndFocusOther);
 
@@ -114,15 +111,14 @@ end;
 
 function GetSemaphore: string;
 begin
-  if APP_SEMAFOR = '' then
-    begin
-      APP_SEMAFOR := StringReplace( Application.ExeName, '.', '_', [rfReplaceAll]);
-      APP_SEMAFOR := StringReplace( APP_SEMAFOR, '\', '_', [rfReplaceAll]);
-      APP_SEMAFOR := StringReplace( APP_SEMAFOR, ':', '', [rfReplaceAll]);
+  if APP_SEMAFOR = '' then begin
+    APP_SEMAFOR := StringReplace( Application.ExeName, '.', '_', [rfReplaceAll]);
+    APP_SEMAFOR := StringReplace( APP_SEMAFOR, '\', '_', [rfReplaceAll]);
+    APP_SEMAFOR := StringReplace( APP_SEMAFOR, ':', '', [rfReplaceAll]);
 
-      if Length( APP_SEMAFOR ) > 100 then
-        APP_SEMAFOR := Copy( APP_SEMAFOR, Length(APP_SEMAFOR) - 100, 100 );
-    end;
+    if Length( APP_SEMAFOR ) > 100 then
+      APP_SEMAFOR := Copy( APP_SEMAFOR, Length(APP_SEMAFOR) - 100, 100 );
+  end;
 
   Result := APP_SEMAFOR;
 end;

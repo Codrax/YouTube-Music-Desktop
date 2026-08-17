@@ -82,11 +82,11 @@ type
     property Section: string read FSection write FSection;
 
     // Make methods public
-    function Exists(Name: string): boolean;
+    function Exists(Name: string): boolean; reintroduce;
 
-    function GetValues: TArray<string>;
-    function ValueExists(Name: string): boolean;
-    procedure DeleteValue(Name: string);
+    function GetValues: TArray<string>; reintroduce;
+    function ValueExists(Name: string): boolean; reintroduce;
+    procedure DeleteValue(Name: string); reintroduce;
 
     function SelfExists: boolean;
     procedure DeleteSelf;

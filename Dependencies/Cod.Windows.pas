@@ -8,11 +8,21 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Classes,
   Vcl.Graphics, Win.Registry, Vcl.Dialogs, Vcl.Forms, UITypes, Types,
   Winapi.shlobj, Cod.Registry, IOUtils, Winapi.ActiveX, Win.ComObj,
-  Winapi.ShellApi, Cod.ColorUtils, Winapi.PsApi, Vcl.Imaging.pngimage,
+  Winapi.ShellApi, Winapi.PsApi, Vcl.Imaging.pngimage,
   Cod.Graphics, Cod.Files, Cod.Types, Cod.MesssageConst, Winapi.TlHelp32,
-  Cod.Windows.ThemeApi, Cod.SysUtils, Winapi.PropKey, Winapi.PropSys;
+  Cod.Windows.ThemeApi, Winapi.PropKey, Winapi.PropSys;
+
+const
+  LLKHF_ALTDOWN = KF_ALTDOWN shr 8;
+  WH_KEYBOARD_LL = 13;
+
+  EXTENDED_STARTUPINFO_PRESENT = $00080000;
+  PROC_THREAD_ATTRIBUTE_PARENT_PROCESS = $00020000;
 
 type
+  // Proc
+  TEnumerateWindowProc = reference to procedure(AWindow: HWND; var Continue: boolean);
+
   // Cardinals
   TWinPlatform = (Platform32, Platform64);
   TWinVersion = (Win2000, WinXp, WinXp64, Vista2008, Win72008R2, Win8, Win10);
@@ -25,6 +35,38 @@ type
   TWinSettingsPage = (Home, FlightMode, Bluetooth, Cellular, Accounts,
     Language, Location, LockScreen, Hotspot, Notifications, Power, Privacy,
     Display, Wifi, Workplace);
+
+  //
+ TStartupInfoEx = record
+    StartupInfo: TStartupInfo;
+    lpAttributeList: PProcThreadAttributeList;
+  end;
+
+  // Keyboard stucts
+  PKBDLLHOOKSTRUCT = ^TKBDLLHOOKSTRUCT;
+
+  TKBDLLHOOKSTRUCT = packed record
+    vkCode: DWORD;
+    scanCode: DWORD;
+    flags: DWORD;
+    time: DWORD;
+    dwExtraInfo: DWORD;
+  end;
+
+  // TFileEx
+  TFileEx = record
+  private
+
+  public
+    class function Replace(ReplacedFile, ReplacedWithFile: string;
+      IgnoreMetadataErrors: boolean=false): boolean; overload; static;
+    class function Replace(ReplacedFile, ReplacedWithFile, BackupFile: string;
+      IgnoreMetadataErrors: boolean=false): boolean; overload; static;
+
+    class function FlushFileToDisk(FilePath: string): boolean; static;
+
+    class function DeleteIfExists(FilePath: string): boolean; static;
+  end;
 
   // Records
   TProcess = record
@@ -54,9 +96,13 @@ type
   TProcessHandle = type THandle;
   TProcessHandleHelper = record helper for TProcessHandle
   public
-    function ModuleFilePath: string;
-    function ProcessName: string;
-    function ModuleName: string;
+    function GetModuleFilePath: string;
+    function GetProcessName: string;
+    function GetModuleName: string;
+    function GetProcessID: DWORD;
+
+    function IsValid: Boolean;
+    function IsRunning: Boolean;
 
     // For applications
     function GetAppUserModelID: string;
@@ -73,6 +119,26 @@ type
   TProcessID = type DWORD;
   TProcessIDHelper = record helper for TProcessID
   public
+    // Information
+    function Exists: Boolean;
+
+    function GetParentPID: TProcessID;
+
+    // Actions
+    function Terminate(AExitCode: integer=1): boolean;
+
+    // Get handle
+      /// Possible permissions
+      ///  PROCESS_CREATE_THREAD
+      ///  PROCESS_VM_OPERATION
+      ///  PROCESS_VM_READ
+      ///  PROCESS_VM_WRITE
+      ///  PROCESS_DUP_HANDLE
+      ///  PROCESS_CREATE_PROCESS
+      ///  PROCESS_SET_QUOTA
+      ///  PROCESS_SET_INFORMATION
+      ///  PROCESS_QUERY_INFORMATION
+      ///  PROCESS_ALL_ACCESS
     function ProcessHandle(Permissions: DWORD): TProcessHandle;
     function ProcessHandleReadOnly: TProcessHandle;
     function ProcessHandleAllAcccess: TProcessHandle;
@@ -84,13 +150,51 @@ type
     // Information
     function GetTitle: string;
     function GetBoundsRect: TRect;
+    function GetPosition: TPoint;
+    function GetSize: TSize;
+    function GetWindowProc: Pointer;
+
     function GetClientRect: TRect;
     function GetCanvas: TCanvas;
+    function GetScreenToClient(P: TPoint): TPoint;
+     function GetClientToScreen(P: TPoint): TPoint;
+    function GetClassName: string;
 
     function GetAppUserModelID: string;
 
+    // Set information
+    procedure SetTitle(const S: string);
+    procedure SetBoundsRect(const R: TRect);
+    procedure SetPosition(P: TPoint);
+    procedure SetSize(S: TSIze);
+    function SetWindowProc(WndProc: Pointer): boolean;
+    procedure SetTransparency(Level: Byte);
+
+    // Z-Order
+    procedure BringToFront;
+
+    function GetNextWindow: HWND;
+    function GetPreviousWindow: HWND;
+    function GetOwnerWindow: HWND;
+
+    // Styles
+    function GetStyle: Longint;
+    function GetExStyle: Longint;
+    procedure SetStyle(Style: Longint);
+    procedure SetExStyle(Style: Longint);
+    function HasStyle(Style: Longint): Boolean;
+    function HasExStyle(Style: Longint): Boolean;
+
+    // Icons
+    function GetSmallIcon: HICON;
+    function GetLargeIcon: HICON;
+    function GetSystemMenu(Reset: Boolean = False): HMENU;
+
+    // Coordinates
+    function ScreenPosInside(const P: TPoint): Boolean;
+
     // Messages
-    function PostMessage(Message: UINT; wParam: WPARAM; lParam: LPARAM): boolean;
+    function PostMessage(Message: UINT; wParam: WPARAM; lParam: LPARAM): longbool;
     function SendMessage(Message: UINT; wParam: WPARAM; lParam: LPARAM): int64;
     procedure PostCloseMessage;
 
@@ -99,10 +203,63 @@ type
 
     // Process
     function GetProcessID: TProcessID;
+    function GetThreadID: Cardinal;
 
     // Children
     function GetParentWindow: HWND;
     function GetChildWindows: TArray<HWND>;
+  end;
+
+
+  // Shortcut manager
+  TShellLinkFile = class
+  private
+    FShellLink: IShellLink;
+    FMaxPath: integer;
+
+    //
+    function GetPathS: string;
+    procedure SetPath(const Value: string);
+    function GetArguments: string;
+    function GetDescription: string;
+    function GetHotkey: word;
+    function GetIconLocation: string;
+    function GetShowCmd: integer;
+    function GetWorkingDirectory: string;
+    procedure SetArguments(const Value: string);
+    procedure SetDescription(const Value: string);
+    procedure SetHotkey(const Value: word);
+    procedure SetIconLocation(const Value: string);
+    procedure SetRelativePath(const Value: string);
+    procedure SetShowCmd(const Value: integer);
+    procedure SetWorkingDirectory(const Value: string);
+    function GetItemIDList: TItemIDList;
+    procedure SetItemIDList(const Value: TItemIDList);
+
+  public
+    property Path: string read GetPathS write SetPath;
+    property ItemIDList: TItemIDList read GetItemIDList write SetItemIDList;
+    property Description: string read GetDescription write SetDescription;
+    property WorkingDirectory: string read GetWorkingDirectory write SetWorkingDirectory;
+    property Arguments: string read GetArguments write SetArguments;
+    property Hotkey: word read GetHotkey write SetHotkey;
+    property ShowCmd: integer read GetShowCmd write SetShowCmd;
+    property IconLocation: string read GetIconLocation write SetIconLocation;
+    property RelativePath: string write SetRelativePath;
+
+    property MaxPath: integer read FMaxPath write FMaxPath default MAX_PATH;
+
+    // Extended prop
+    procedure GetIcon(out Path: string; out IconIndex: integer; MaxLength: integer = -1); // -1 to use the object's deafult
+    procedure SetIcon(Path: string; IconIndex: integer);
+
+    // Procs
+    procedure SaveToFile(FilePath: string);
+    procedure LoadFromFile(FilePath: string);
+
+    // Constructors
+    constructor Create;
+    destructor Destroy; override;
   end;
 
 const
@@ -152,7 +309,7 @@ function DarkModeSystemActive: Boolean;
 procedure DarkModeApplyToWindow(Handle: HWND); overload;
 procedure DarkModeApplyToWindow(Handle: HWND; DarkTheme: boolean); overload;
 function TransparencyEnabled: Boolean;
-function GetAccentColor(brightencolor: boolean = false): TColor;
+function GetAccentColor: TColor;
 
 { Shell }
 function GetWinlogonShell: string;
@@ -184,16 +341,20 @@ function GetUserProfilePictureEx: string;
 /// <summary> Returns list of all running processes. </summary>
 function GetProcessList: TProcessList;
 /// <summary> Returns process ID (PID) of this application. </summary>
-function ProcessID: integer;
+function ProcessID: TProcessID;
 function GetCurrentAppName: string;
 function GetOpenProgramFileName: string;
 function GetOpenProgramFileNameEx: ansistring;
 function GetActiveWindow: HWND;
 function GetActiveWindows: TArray<HWND>;
+procedure EnumerateActiveWindows(Proc: TEnumerateWindowProc);
 
 { HWND }
 function GetAppUserModelIDFromWindow(Window: HWND; out Output: string): boolean;
 procedure BringToTopAndFocusWindow(Window: HWND);
+procedure BringToTopAndFocusWindowAttachedThread(Window: HWND);
+function GetHScrollPos(Handle: HWND): Integer;
+function GetVScrollPos(Handle: HWND): Integer;
 
 { Icons }
 function GetIconStrIcon(IconString: string; Icon: TIcon): boolean; overload;
@@ -221,11 +382,32 @@ procedure CreateShortcut(const Target, FilePath, Description, Parameters: string
 procedure ReadShortcut(const FilePath: string; var Target, Description, Parameters: string);
 function GetFileTypeDescription(filetype: string): string;
 
+{ Explorer }
+function GetProcessIDFromExplorer: TProcessID;
+procedure StartProcessAsUser(const AExeName: string);
+
+{ COM }
+function GetAvailableComPorts: TStringList;
+
+{ Import for shell user run }
+function GetShellWindow: HWND; stdcall; external user32;
+function InitializeProcThreadAttributeList(lpAttributeList: PProcThreadAttributeList; dwAttributeCount, dwFlags: DWORD;
+  var lpSize: Cardinal): ByteBool; stdcall; external kernel32;
+
+function UpdateProcThreadAttribute(lpAttributeList: PProcThreadAttributeList; dwFlags: DWORD; Attribute: Cardinal;
+  lpValue: Pointer; cbSize: Cardinal; lpPreviousValue: Pointer; lpReturnSize: PCardinal): ByteBool; stdcall;
+  external kernel32;
+
+procedure DeleteProcThreadAttributeList(lpAttributeList: PProcThreadAttributeList); stdcall; external kernel32;
+
 const
   KEYEVENTF_KEYDOWN = 0; // declaration
   VK_ENTER = VK_RETURN;
 
 implementation
+
+uses
+  Cod.SysUtils;
 
 const
   USER_PROFILE_PICTURES_LOCATION = '%PUBLIC%\AccountPictures\';
@@ -414,7 +596,7 @@ begin
   FlashWindowEx(Flash);
 end;
 
-function GetAccentColor(brightencolor: boolean ): TColor;
+function GetAccentColor: TColor;
 var
   R: TRegistry;
   ARGB: Cardinal;
@@ -430,9 +612,6 @@ begin
   finally
     R.Free;
   end;
-
-  if brightencolor then
-    Result := ChangeColorSat(Result, 50);
 end;
 
 function DarkModeAppsActive: Boolean;
@@ -557,6 +736,83 @@ begin
   Result := STRING_UNKNOWN;
 end;
 
+function GetProcessIDFromExplorer: TProcessID;
+var
+  Handle: THandle;
+  ProcEntry: TProcessEntry32;
+begin
+  Result := 0;
+
+  Handle := CreateToolHelp32SnapShot(TH32CS_SNAPALL, 0);
+  ProcEntry.dwSize := SizeOf(TProcessEntry32);
+  Process32First(Handle, ProcEntry);
+
+  repeat
+    if SameText(ProcEntry.szExeFile, 'explorer.exe') then
+      Exit(ProcEntry.th32ProcessID);
+  until not Process32Next(Handle, ProcEntry);
+
+  CloseHandle(Handle);
+end;
+
+procedure StartProcessAsUser(const AExeName: string);
+var
+  ProcessInformation: TProcessInformation;
+  hProcess, Pid, Size: Cardinal;
+  StartupInfoEx: TStartupInfoEx;
+begin
+  ZeroMemory(@StartupInfoEx, SizeOf(StartupInfoEx));
+  // explorer.exe handle
+  // according to @RbMm you can use the line below
+  // GetWindowThreadProcessId(GetShellWindow, Pid);
+  // but for some strange reason it's not working for me. So I used
+  GetWindowThreadProcessId(GetShellWindow, Pid);
+
+  hProcess := OpenProcess(PROCESS_CREATE_PROCESS, False, Pid);
+
+  InitializeProcThreadAttributeList(nil, 1, 0, Size);
+  GetMem(StartupInfoEx.lpAttributeList, Size);
+  InitializeProcThreadAttributeList(StartupInfoEx.lpAttributeList, 1, 0, Size);
+  UpdateProcThreadAttribute(StartupInfoEx.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, @hProcess,
+    SizeOf(THandle), nil, nil);
+
+  with StartupInfoEx.StartupInfo do
+  begin
+    cb := SizeOf(TStartupInfoEx);
+    wShowWindow := SW_SHOWNORMAL;
+  end;
+
+  try
+    if not CreateProcess(PChar(AExeName), nil, nil, nil, False,
+      EXTENDED_STARTUPINFO_PRESENT, nil, nil, StartupInfoEx.StartupInfo, ProcessInformation) then
+      RaiseLastOSError;
+  finally
+    DeleteProcThreadAttributeList(StartupInfoEx.lpAttributeList);
+    FreeMem(StartupInfoEx.lpAttributeList);
+    CloseHandle(hProcess);
+  end;
+end;
+
+function GetAvailableComPorts: TStringList;
+var
+  Buffer: array[0..65535] of Char;
+  P: PChar;
+begin
+  Result := TStringList.Create;
+  FillChar(Buffer, SizeOf(Buffer), 0);
+  if QueryDosDevice(nil, Buffer, SizeOf(Buffer)) <> 0 then
+  begin
+    P := Buffer;
+    while P^ <> #0 do
+    begin
+      // COM ports are usually named like "COM1", "COM2", etc.
+      if Pos('COM', UpperCase(P)) = 1 then
+        Result.Add(P);
+      Inc(P, StrLen(P) + 1);
+    end;
+  end;
+end;
+
 function GetWinlogonShell: string;
 begin
   Result := TQuickReg.GetStringValue('Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon', 'Shell');
@@ -577,6 +833,7 @@ begin
   h := GetForegroundWindow;
   SetLength(Result, GetWindowTextLength(h) + 1);
   GetWindowText(h, PChar(Result), GetWindowTextLength(h) + 1);
+  Result := Result.TrimRight;
 end;
 
 function GetOpenProgramFileName: String;
@@ -616,25 +873,38 @@ begin
   Result := GetForegroundWindow;
 end;
 
-function EnumWindowsCallback_ProcessPointer(Wnd: HWND; lParam: LPARAM): BOOL; stdcall;
-type
-  AType = TArray<HWND>;
-  ATypeP = ^AType;
-var
-  ArrayP: ATypeP;
-begin
-  ArrayP := ATypeP(lParam);
-  const Index = Length(ArrayP^);
-  SetLength(ArrayP^, Index+1);
-  ArrayP^[Index] := Wnd;
+  function GetActiveWindows_EnumWindowsCallback_Process(Wnd: HWND; lParam: LPARAM): BOOL; stdcall;
+  type
+    AType = TArray<HWND>;
+    ATypeP = ^AType;
+  var
+    ArrayP: ATypeP;
+  begin
+    ArrayP := ATypeP(lParam);
+    const Index = Length(ArrayP^);
+    SetLength(ArrayP^, Index+1);
+    ArrayP^[Index] := Wnd;
 
-  Result := true;
-end;
+    Result := true;
+  end;
 function GetActiveWindows: TArray<HWND>;
 begin
   Result := [];
 
-  EnumWindows(@EnumWindowsCallback_ProcessPointer, LPARAM(@Result));
+  EnumWindows(@GetActiveWindows_EnumWindowsCallback_Process, LPARAM(@Result));
+end;
+
+  function EnumerateActiveWindows_EnumWindowsCallback_Process(Wnd: HWND; lParam: LPARAM): BOOL; stdcall;
+  var
+    Continue: boolean;
+  begin
+    Continue:= true;
+    TEnumerateWindowProc(lParam)(Wnd, Continue);
+    Result := Continue;
+  end;
+procedure EnumerateActiveWindows(Proc: TEnumerateWindowProc);
+begin
+  EnumWindows(@EnumerateActiveWindows_EnumWindowsCallback_Process, LPARAM( TEnumerateWindowProc(Proc) ));
 end;
 
 function GetAppUserModelIDFromWindow(Window: HWND; out Output: string): boolean;
@@ -685,9 +955,49 @@ begin
   RedrawWindow(Window, nil, 0, RDW_FRAME or RDW_INVALIDATE or RDW_ALLCHILDREN );
 end;
 
+procedure BringToTopAndFocusWindowAttachedThread(Window: HWND);
+var
+  ForeThread, ThisThread: DWORD;
+begin
+  ForeThread := GetWindowThreadProcessId(GetForegroundWindow(), nil);
+  ThisThread := GetCurrentThreadId();
+
+  if AttachThreadInput(ThisThread, ForeThread, True) then begin
+    SetForegroundWindow(Window);
+    SetActiveWindow(Window);
+    BringWindowToTop(Window);
+    AttachThreadInput(ThisThread, ForeThread, False);
+  end;
+end;
+
+function GetHScrollPos(Handle: HWND): Integer;
+var
+  SI: TScrollInfo;
+begin
+  SI.cbSize := SizeOf(SI);
+  SI.fMask  := SIF_POS;
+  if GetScrollInfo(Handle, SB_HORZ, SI) then
+    Result := SI.nPos
+  else
+    Result := 0;
+end;
+
+function GetVScrollPos(Handle: HWND): Integer;
+var
+  SI: TScrollInfo;
+begin
+  SI.cbSize := SizeOf(SI);
+  SI.fMask  := SIF_POS;
+  if GetScrollInfo(Handle, SB_VERT, SI) then
+    Result := SI.nPos
+  else
+    Result := 0;
+end;
+
 function GetIconStrIcon(IconString: string; Icon: TIcon): boolean; overload;
 var
-  IconIndex: word;
+  IconIndex: integer;
+  lpIcon: word;
   FilePath: string;
 begin
   Result := false;
@@ -696,9 +1006,13 @@ begin
   ExtractIconDataEx(IconString, FilePath, IconIndex);
   if not TFile.Exists(FilePath) then
     Exit;
+  if IconIndex < 0 then
+    lpIcon := 0 // resource index -- not supported atm.
+  else
+    lpIcon := IconIndex;
 
   // Get TIcon
-  Icon.Handle := ExtractAssociatedIcon(HInstance, PChar(FilePath), IconIndex);
+  Icon.Handle := ExtractAssociatedIcon(HInstance, PChar(FilePath), lpIcon);
   Icon.Transparent := true;
 
   // Success
@@ -708,26 +1022,14 @@ end;
 function GetIconStrIcon(IconString: string; PngImage: TPngImage): boolean;
 var
   Icon: TIcon;
-  IconIndex: word;
 begin
-  Result := false;
-
-  // Load
-  ExtractIconDataEx(IconString, IconString, IconIndex);
-  if not TFile.Exists(IconString) then
-    Exit;
-
   // Get TIcon
   Icon := TIcon.Create;
   try
-    Icon.Handle := ExtractAssociatedIcon(HInstance, PChar(IconString), IconIndex);
-    Icon.Transparent := true;
+    Result := GetIconStrIcon(IconString, Icon);
 
     // Convert to PNG
     ConvertToPNG(Icon, PngImage);
-
-    // Success
-    Result := true;
   finally
     Icon.Free;
   end;
@@ -885,7 +1187,7 @@ end;
 function GetUserProfilePictureEx: string;
 begin
   Result :=
-    IncludeTrailingPathDelimiter( GetUserShellLocation(TUserShellLocation.AppDataLocal) )
+    IncludeTrailingPathDelimiter( GetUserShellLocation(TUserShellLocation.LocalAppData) )
       + 'Microsoft\Windows\AccountPicture\UserImage.jpg';
 end;
 
@@ -904,7 +1206,7 @@ begin
     SendMessage(hTaskBar, WM_COMMAND, MAKEWPARAM(419, 0), 0);
 end;
 
-function ProcessID: integer;
+function ProcessID: TProcessID;
 begin
   Result := GetCurrentProcessId;
 end;
@@ -1167,13 +1469,13 @@ begin
 
   with SLink do begin
     SetLength(S, MAX_PATH);
-    
+
     var X: TWin32FindDataW;
     SLink.GetPath(@S[1], MAX_PATH, X, 0);
     T := Trim(S);
     T := T.Substring(0, T.IndexOf(#0));
     Target := T;
-    
+
     SLink.GetDescription(@S[1], MAX_PATH);
     T := Trim(S);
     T := T.Substring(0, T.IndexOf(#0));
@@ -1230,6 +1532,12 @@ end;
 
 { THWNDHelper }
 
+procedure THWNDHelper.BringToFront;
+begin
+  SetForegroundWindow(Self);
+  SetActiveWindow(Self);
+end;
+
 function THWNDHelper.GetAppUserModelID: string;
 begin
   if not GetAppUserModelIDFromWindow(Self, Result) then
@@ -1247,9 +1555,32 @@ begin
   Result.Handle := GetWindowDC(Self);
 end;
 
+  function THWNDHelperGetChildWindows_EnumWindowsCallback_Process(Wnd: HWND; lParam: LPARAM): BOOL; stdcall;
+  type
+    AType = TArray<HWND>;
+    ATypeP = ^AType;
+  var
+    ArrayP: ATypeP;
+  begin
+    ArrayP := ATypeP(lParam);
+    const Index = Length(ArrayP^);
+    SetLength(ArrayP^, Index+1);
+    ArrayP^[Index] := Wnd;
+
+    Result := true;
+  end;
 function THWNDHelper.GetChildWindows: TArray<HWND>;
 begin
-  EnumChildWindows(Self, @EnumWindowsCallback_ProcessPointer, LPARAM(@Result));
+  EnumChildWindows(Self, @THWNDHelperGetChildWindows_EnumWindowsCallback_Process, LPARAM(@Result));
+end;
+
+function THWNDHelper.GetClassName: string;
+var
+  Title: array[0..255] of Char;
+begin
+  Winapi.Windows.GetClassName(Self, Title, Length(Title));
+
+  Result := Title;
 end;
 
 function THWNDHelper.GetClientRect: TRect;
@@ -1257,14 +1588,74 @@ begin
   Winapi.Windows.GetClientRect(Self, Result);
 end;
 
+function THWNDHelper.GetClientToScreen(P: TPoint): TPoint;
+begin
+  Result := P;
+  Winapi.Windows.ClientToScreen(Self, Result);
+end;
+
+function THWNDHelper.GetExStyle: Longint;
+begin
+  Result := GetWindowLong(Self, GWL_EXSTYLE);
+end;
+
+function THWNDHelper.GetLargeIcon: HICON;
+begin
+  Result := SendMessage(Self, WM_GETICON, ICON_BIG);
+end;
+
 function THWNDHelper.GetParentWindow: HWND;
 begin
   Result := GetWindowLong(Self, GWL_HWNDPARENT);
 end;
 
+function THWNDHelper.GetPosition: TPoint;
+begin
+  Result := Self.GetBoundsRect.TopLeft;
+end;
+
+function THWNDHelper.GetPreviousWindow: HWND;
+begin
+  // GW_HWNDPREV: previous window in Z-order
+  Result := GetWindow(Self, GW_HWNDPREV);
+end;
+
 function THWNDHelper.GetProcessID: TProcessID;
 begin
   GetWindowThreadProcessId(Self, DWORD(Result));
+end;
+
+function THWNDHelper.GetScreenToClient(P: TPoint): TPoint;
+begin
+  Result := P;
+  Winapi.Windows.ScreenToClient(Self, Result);
+end;
+
+function THWNDHelper.GetSize: TSize;
+begin
+  Result := GetBoundsRect.Size;
+end;
+
+function THWNDHelper.GetSmallIcon: HICON;
+begin
+  Result := SendMessage(Self, WM_GETICON, ICON_SMALL);
+  if Result = 0 then
+    Result := SendMessage(Self, WM_GETICON, ICON_SMALL2);
+end;
+
+function THWNDHelper.GetStyle: Longint;
+begin
+  Result := GetWindowLong(Self, GWL_STYLE);
+end;
+
+function THWNDHelper.GetSystemMenu(Reset: Boolean): HMENU;
+begin
+  Result := Winapi.Windows.GetSystemMenu(Self, Reset);
+end;
+
+function THWNDHelper.GetThreadID: Cardinal;
+begin
+  Result := GetWindowThreadProcessId(Self, nil);
 end;
 
 function THWNDHelper.GetTitle: string;
@@ -1276,6 +1667,21 @@ begin
   Result := Title;
 end;
 
+function THWNDHelper.GetWindowProc: Pointer;
+begin
+  Result := Pointer(GetWindowLongPtr(Self, GWLP_WNDPROC));
+end;
+
+function THWNDHelper.HasExStyle(Style: Longint): Boolean;
+begin
+  Result := (GetWindowLong(Self, GWL_EXSTYLE) and Style) <> 0;
+end;
+
+function THWNDHelper.HasStyle(Style: Longint): Boolean;
+begin
+  Result := (GetWindowLong(Self, GWL_STYLE) and Style) <> 0;
+end;
+
 function THWNDHelper.GetModuleFilePathEx: string;
 var
   OutValue: array[0..MAX_PATH] of Char;
@@ -1285,10 +1691,31 @@ begin
   Result := OutValue;
 end;
 
+function THWNDHelper.GetNextWindow: HWND;
+begin
+  // GW_HWNDNEXT: next window in Z-order
+  Result := GetWindow(Self, GW_HWNDNEXT);
+end;
+
+function THWNDHelper.GetOwnerWindow: HWND;
+begin
+  // Owner can be a dialog owner or real owner (not the parent)
+  Result := GetWindow(Self, GW_OWNER);
+end;
+
 function THWNDHelper.PostMessage(Message: UINT; wParam: WPARAM;
-  lParam: LPARAM): boolean;
+  lParam: LPARAM): longbool;
 begin
   Result := Winapi.Windows.PostMessage(Self, Message, wParam, lParam);
+end;
+
+function THWNDHelper.ScreenPosInside(const P: TPoint): Boolean;
+var
+  R: TRect;
+begin
+  if not GetWindowRect(Self, R) then
+    Exit(False);
+  Result := PtInRect(R, P);
 end;
 
 function THWNDHelper.SendMessage(Message: UINT; wParam: WPARAM;
@@ -1297,12 +1724,108 @@ begin
   Result := Winapi.Windows.SendMessage(Self, Message, wParam, lParam);
 end;
 
+procedure THWNDHelper.SetBoundsRect(const R: TRect);
+begin
+  MoveWindow(Self, R.Left, R.Top, R.Width, R.Height, True);
+end;
+
+procedure THWNDHelper.SetExStyle(Style: Longint);
+begin
+  SetWindowLong(Self, GWL_EXSTYLE, Style);
+  SetWindowPos(Self, 0, 0,0,0,0,
+    SWP_NOZORDER or SWP_NOMOVE or SWP_NOSIZE or SWP_FRAMECHANGED);
+end;
+
+procedure THWNDHelper.SetPosition(P: TPoint);
+begin
+  SetWindowPos(Self, 0, P.X, P.Y, 0, 0,
+    SWP_NOZORDER or SWP_NOSIZE);
+end;
+
+procedure THWNDHelper.SetSize(S: TSize);
+begin
+  SetWindowPos(Self, 0, 0, 0, S.Width, S.Height,
+    SWP_NOZORDER or SWP_NOMOVE);
+end;
+
+procedure THWNDHelper.SetStyle(Style: Longint);
+begin
+  SetWindowLong(Self, GWL_STYLE, Style);
+  SetWindowPos(Self, 0, 0,0,0,0,
+    SWP_NOZORDER or SWP_NOMOVE or SWP_NOSIZE or SWP_FRAMECHANGED);
+end;
+
+procedure THWNDHelper.SetTitle(const S: string);
+begin
+  SetWindowText(Self, PChar(S));
+end;
+
+procedure THWNDHelper.SetTransparency(Level: Byte);
+var
+  Ex: Longint;
+begin
+  Ex := GetWindowLong(Self, GWL_EXSTYLE) or WS_EX_LAYERED;
+  SetWindowLong(Self, GWL_EXSTYLE, Ex);
+
+  SetLayeredWindowAttributes(Self, 0, Level, LWA_ALPHA);
+end;
+
+function THWNDHelper.SetWindowProc(WndProc: Pointer): boolean;
+begin
+  Result := SetWindowLongPtr(Self, GWLP_WNDPROC, LONG_PTR(WndProc)) <> 0;
+end;
+
 procedure THWNDHelper.PostCloseMessage;
 begin
   PostMessage(WM_CLOSE, 0, 0);
 end;
 
 { TProcessIDHelper }
+
+function TProcessIDHelper.Exists: Boolean;
+var
+  H: THandle;
+  Code: DWORD;
+begin
+  H := OpenProcess(PROCESS_QUERY_INFORMATION, False, Self);
+  if H = 0 then
+    Exit(False);
+  try
+    if GetExitCodeProcess(H, Code) then
+      Result := Code = STILL_ACTIVE
+    else
+      Result := False;
+  finally
+    CloseHandle(H);
+  end;
+end;
+
+function TProcessIDHelper.GetParentPID: TProcessID;
+var
+  Snap: THandle;
+  PE: PROCESSENTRY32;
+begin
+  Result := 0;
+
+  Snap := CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if Snap = INVALID_HANDLE_VALUE then Exit;
+
+  try
+    PE.dwSize := SizeOf(PE);
+    if Process32First(Snap, PE) then
+    begin
+      repeat
+        if PE.th32ProcessID = Self then
+        begin
+          Result := PE.th32ParentProcessID;
+          Exit;
+        end;
+      until not Process32Next(Snap, PE);
+    end;
+  finally
+    CloseHandle(Snap);
+  end;
+end;
 
 function TProcessIDHelper.ProcessHandle(Permissions: DWORD): TProcessHandle;
 begin
@@ -1317,6 +1840,18 @@ end;
 function TProcessIDHelper.ProcessHandleReadOnly: TProcessHandle;
 begin
   Result := ProcessHandle(PROCESS_QUERY_INFORMATION or PROCESS_VM_READ);
+end;
+
+function TProcessIDHelper.Terminate(AExitCode: integer): boolean;
+begin
+  const Handle = ProcessHandle(PROCESS_TERMINATE);
+  if Handle = 0 then
+    Exit(False);
+  try
+    Result := Handle.Terminate(AExitCode);
+  finally
+    Handle.CloseHandle;
+  end;
 end;
 
 { TProcessHandleHelper }
@@ -1350,7 +1885,7 @@ begin
     RaiseLastOSError;
 end;
 
-function TProcessHandleHelper.ModuleFilePath: string;
+function TProcessHandleHelper.GetModuleFilePath: string;
 var
   path: array[0..4095] of Char;
 begin
@@ -1360,7 +1895,7 @@ begin
   Result := path;
 end;
 
-function TProcessHandleHelper.ModuleName: string;
+function TProcessHandleHelper.GetModuleName: string;
 var
   path: array[0..4095] of Char;
 begin
@@ -1370,14 +1905,247 @@ begin
   Result := path;
 end;
 
-function TProcessHandleHelper.ProcessName: string;
+function TProcessHandleHelper.GetProcessID: DWORD;
 begin
-  Result := ChangeFileExt(ModuleName, '');
+  if not IsValid then
+    Exit(0);
+
+  Result := Winapi.Windows.GetProcessId(Self);
+end;
+
+function TProcessHandleHelper.GetProcessName: string;
+begin
+  Result := ChangeFileExt(GetModuleName, '');
+end;
+
+function TProcessHandleHelper.IsRunning: Boolean;
+var
+  Code: DWORD;
+begin
+  Result := False;
+  if not IsValid then Exit;
+
+  if GetExitCodeProcess(Self, Code) then
+    Result := Code = STILL_ACTIVE;
+end;
+
+function TProcessHandleHelper.IsValid: Boolean;
+begin
+  Result := (Self <> 0) and (Self <> INVALID_HANDLE_VALUE);
 end;
 
 function TProcessHandleHelper.Terminate(AExitCode: integer): boolean;
 begin
   Result := Winapi.Windows.TerminateProcess( Self, AExitCode );
+end;
+
+{ TShellLinkFile }
+
+constructor TShellLinkFile.Create;
+begin
+  FShellLink := CreateComObject(CLSID_ShellLink) as IShellLink;
+  FMaxPath := MAX_PATH;
+end;
+
+destructor TShellLinkFile.Destroy;
+begin
+  // interfaces, not needed to be freed
+  inherited;
+end;
+
+function TShellLinkFile.GetPathS: string;
+var
+  X: TWin32FindDataW;
+begin
+  SetLength(Result, FMaxPath);
+  FShellLink.GetPath(@Result[1], FMaxPath, X, 0);
+  Result := WideCharToString(@Result[1]);
+end;
+
+procedure TShellLinkFile.LoadFromFile(FilePath: string);
+begin
+  (FShellLink as IPersistFile).Load(PWChar(WideString(FilePath)), STGM_READ);
+end;
+
+procedure TShellLinkFile.SaveToFile(FilePath: string);
+begin
+  (FShellLink as IPersistFile).Save(PWChar(WideString(FilePath)), FALSE);
+end;
+
+procedure TShellLinkFile.SetArguments(const Value: string);
+begin
+  FShellLink.SetArguments(PChar(Value));
+end;
+
+procedure TShellLinkFile.SetDescription(const Value: string);
+begin
+  FShellLink.SetDescription(PChar(Value));
+end;
+
+procedure TShellLinkFile.SetHotkey(const Value: word);
+begin
+  FShellLink.SetHotkey(Value);
+end;
+
+procedure TShellLinkFile.SetIcon(Path: string; IconIndex: integer);
+begin
+  FShellLink.SetIconLocation(PChar(Path), IconIndex);
+end;
+
+procedure TShellLinkFile.SetIconLocation(const Value: string);
+var
+  Path: string;
+  IconIndex: integer;
+begin
+  ExtractIconData(Value, Path, IconIndex);
+  FShellLink.SetIconLocation(PChar(Path), IconIndex);
+end;
+
+procedure TShellLinkFile.SetItemIDList(const Value: TItemIDList);
+begin
+  FShellLink.SetIDList(@Value);
+end;
+
+procedure TShellLinkFile.SetPath(const Value: string);
+begin
+  FShellLink.SetPath(PChar(Value));
+end;
+
+function TShellLinkFile.GetArguments: string;
+begin
+  SetLength(Result, FMaxPath);
+  FShellLink.GetArguments(@Result[1], FMaxPath);
+  Result := WideCharToString(@Result[1]);
+end;
+
+function TShellLinkFile.GetDescription: string;
+begin
+  SetLength(Result, FMaxPath);
+  FShellLink.GetDescription(@Result[1], FMaxPath);
+  Result := WideCharToString(@Result[1]);
+end;
+
+function TShellLinkFile.GetHotkey: word;
+begin
+  Result := 0;
+  FShellLink.GetHotkey(Result);
+end;
+
+procedure TShellLinkFile.GetIcon(out Path: string; out IconIndex: integer; MaxLength: integer);
+begin
+  if MaxLength = -1 then
+    MaxLength := FMaxPath;
+
+  SetLength(Path, MaxLength);
+  FShellLink.GetIconLocation(@Path[1], MaxLength, IconIndex);
+  Path := WideCharToString(@Path[1]);
+end;
+
+function TShellLinkFile.GetIconLocation: string;
+var
+  IconIndex: integer;
+begin
+  SetLength(Result, FMaxPath);
+  FShellLink.GetIconLocation(@Result[1], FMaxPath, IconIndex);
+  Result := WideCharToString(@Result[1]);
+  if Result <> '' then
+    Result := Format('%S, %D', [Result, IconIndex]);
+end;
+
+function TShellLinkFile.GetItemIDList: TItemIDList;
+var
+  W: PItemIDList;
+begin
+  FShellLink.GetIDList(W);
+  Result := W^;
+end;
+
+function TShellLinkFile.GetShowCmd: integer;
+begin
+  Result := 0;
+  FShellLink.GetShowCmd(Result);
+end;
+
+function TShellLinkFile.GetWorkingDirectory: string;
+begin
+  SetLength(Result, FMaxPath);
+  FShellLink.GetWorkingDirectory(@Result[1], FMaxPath);
+  Result := WideCharToString(@Result[1]);
+end;
+
+procedure TShellLinkFile.SetRelativePath(const Value: string);
+begin
+  FShellLink.SetRelativePath(PChar(Value), 0);
+end;
+
+procedure TShellLinkFile.SetShowCmd(const Value: integer);
+begin
+  FShellLink.SetShowCmd(Value);
+end;
+
+procedure TShellLinkFile.SetWorkingDirectory(const Value: string);
+begin
+  FShellLink.SetWorkingDirectory(PChar(Value));
+end;
+
+{ TFileEx }
+
+class function TFileEx.Replace(ReplacedFile, ReplacedWithFile: string; IgnoreMetadataErrors: boolean): boolean;
+var
+  Flags: Cardinal;
+begin
+  Flags := REPLACEFILE_WRITE_THROUGH;
+  if IgnoreMetadataErrors then
+    Flags := Flags or REPLACEFILE_IGNORE_MERGE_ERRORS;
+
+  SetLastError(ERROR_SUCCESS);
+  Result := ReplaceFile(PChar(ReplacedFile), PChar(ReplacedWithFile),
+    nil, Flags, nil, nil);
+end;
+
+class function TFileEx.Replace(ReplacedFile, ReplacedWithFile, BackupFile: string;
+  IgnoreMetadataErrors: boolean): boolean;
+var
+  Flags: Cardinal;
+begin
+  Flags := REPLACEFILE_WRITE_THROUGH;
+  if IgnoreMetadataErrors then
+    Flags := Flags or REPLACEFILE_IGNORE_MERGE_ERRORS;
+
+  SetLastError(ERROR_SUCCESS);
+  Result := ReplaceFile(PChar(ReplacedFile), PChar(ReplacedWithFile),
+    PChar(BackupFile), Flags, nil, nil);
+end;
+
+class function TFileEx.DeleteIfExists(FilePath: string): boolean;
+begin
+  Result := TFile.Exists(FilePath);
+  if Result then
+    TFile.Delete(FilePath);
+end;
+
+class function TFileEx.FlushFileToDisk(FilePath: string): boolean;
+var
+  Handle: THandle;
+begin
+  Handle := CreateFile(
+    PChar(FilePath),
+    GENERIC_WRITE,
+    FILE_SHARE_READ or FILE_SHARE_WRITE,
+    nil,
+    OPEN_EXISTING,
+    FILE_ATTRIBUTE_NORMAL,
+    0
+  );
+
+  if Handle = INVALID_HANDLE_VALUE then
+    Exit(false);
+
+  try
+    Result := FlushFileBuffers(Handle);
+  finally
+    CloseHandle(Handle);
+  end;
 end;
 
 end.
